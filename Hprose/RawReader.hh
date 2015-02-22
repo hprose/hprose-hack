@@ -42,10 +42,10 @@ namespace Hprose {
             }
         }
         public function readRaw(Stream $ostream = NULL, string $tag = NULL): Stream {
-            if (is_null($ostream)) {
+            if ($ostream === NULL) {
                 $ostream = new StringStream();
             }
-            if (is_null($tag)) {
+            if ($tag === NULL) {
                 $tag = $this->stream->getc();
             }
             $ostream->write($tag);

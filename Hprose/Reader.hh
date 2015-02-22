@@ -104,7 +104,7 @@ namespace Hprose {
             }
         }
         public function checkTag(string $expectTag, string $tag = NULL): void {
-            if (is_null($tag)) {
+            if ($tag === NULL) {
                 $tag = $this->stream->getc();
             }
             if ($tag != $expectTag) {
@@ -112,7 +112,7 @@ namespace Hprose {
             }
         }
         public function checkTags(string $expectTags, string $tag = NULL): string {
-            if (is_null($tag)) {
+            if ($tag === NULL) {
                 $tag = $this->stream->getc();
             }
             if (!in_array($tag, $expectTags)) {
