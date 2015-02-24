@@ -14,15 +14,15 @@
  *                                                        *
  * hprose class manager library for hack.                 *
  *                                                        *
- * LastModified: Feb 18, 2015                             *
+ * LastModified: Feb 24, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace Hprose {
     class ClassManager {
-        private static Map<string, string> $classCache1 = Map<string, string> {};
-        private static Map<string, string> $classCache2 = Map<string, string> {};
+        private static Map<string, string> $classCache1 = Map {};
+        private static Map<string, string> $classCache2 = Map {};
         public static function register(string $class, string $alias): void {
             self::$classCache1[$alias] = $class;
             self::$classCache2[$class] = $alias;
@@ -35,7 +35,7 @@ namespace Hprose {
             self::register($class, $alias);
             return $alias;
         }
-        public static function getClass($alias): string {
+        public static function getClass(string $alias): string {
             if (self::$classCache1->contains($alias)) {
                 return self::$classCache1[$alias];
             }
