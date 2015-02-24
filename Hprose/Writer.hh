@@ -14,7 +14,7 @@
  *                                                        *
  * hprose writer class for hack.                          *
  *                                                        *
- * LastModified: Feb 24, 2015                             *
+ * LastModified: Feb 25, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -93,7 +93,7 @@ namespace Hprose {
             $this->refer = $simple ? new FakeWriterRefer() : new RealWriterRefer();
         }
         public function serialize(mixed $val): void {
-            if ((!isset($val)) || ($val === NULL)) {
+            if ($val === NULL) {
                 $this->writeNull();
             }
             elseif (is_scalar($val)) {

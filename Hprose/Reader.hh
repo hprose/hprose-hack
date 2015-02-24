@@ -14,7 +14,7 @@
  *                                                        *
  * hprose reader class for hack.                          *
  *                                                        *
- * LastModified: Feb 24, 2015                             *
+ * LastModified: Feb 25, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -98,16 +98,16 @@ namespace Hprose {
                 default: return $this->unexpectedTag($tag);
             }
         }
-        public function checkTag(string $expectTag, string $tag = NULL): void {
-            if ($tag === NULL) {
+        public function checkTag(string $expectTag, string $tag = ''): void {
+            if ($tag == '') {
                 $tag = $this->stream->getc();
             }
             if ($tag != $expectTag) {
                 $this->unexpectedTag($tag, $expectTag);
             }
         }
-        public function checkTags(string $expectTags, string $tag = NULL): string {
-            if ($tag === NULL) {
+        public function checkTags(string $expectTags, string $tag = ''): string {
+            if ($tag == '') {
                 $tag = $this->stream->getc();
             }
             if (!in_array($tag, $expectTags)) {

@@ -14,7 +14,7 @@
  *                                                        *
  * hprose raw reader class for hack.                      *
  *                                                        *
- * LastModified: Feb 24, 2015                             *
+ * LastModified: Feb 25, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -36,11 +36,11 @@ namespace Hprose {
                 throw new \Exception('No byte found in stream');
             }
         }
-        public function readRaw(Stream $ostream = NULL, string $tag = NULL): Stream {
+        public function readRaw(Stream $ostream = NULL, string $tag = ''): Stream {
             if ($ostream === NULL) {
                 $ostream = new StringStream();
             }
-            if ($tag === NULL) {
+            if ($tag == '') {
                 $tag = $this->stream->getc();
             }
             $ostream->write($tag);

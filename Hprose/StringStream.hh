@@ -14,7 +14,7 @@
  *                                                        *
  * hprose string stream library for hack.                 *
  *                                                        *
- * LastModified: Feb 24, 2015                             *
+ * LastModified: Feb 25, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -35,7 +35,7 @@ namespace Hprose {
             $this->length = strlen($string);
         }
         public function close(): void {
-            $this->buffer = NULL;
+            $this->buffer = '';
             $this->pos = 0;
             $this->mark = -1;
             $this->length = 0;
