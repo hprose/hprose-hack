@@ -14,17 +14,12 @@
  *                                                        *
  * hprose reader class for hack.                          *
  *                                                        *
- * LastModified: Feb 22, 2015                             *
+ * LastModified: Feb 24, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace Hprose {
-    require_once('Common.hh');
-    require_once('Tags.hh');
-    require_once('Stream.hh');
-    require_once('ClassManager.hh');
-
     interface ReaderRefer {
         public function set(mixed $val): void;
         public function read(int $index): mixed;
@@ -34,7 +29,7 @@ namespace Hprose {
     class FakeReaderRefer implements ReaderRefer {
         public function set(mixed $val): void {}
         public function read(int $index): mixed {
-            throw new Exception("Unexpected serialize tag '" .
+            throw new \Exception("Unexpected serialize tag '" .
                                 Tags::TagRef .
                                 "' in stream");
         }
@@ -99,7 +94,7 @@ namespace Hprose {
                 case Tags::TagClass: $this->readClass(); return $this->readObject();
                 case Tags::TagObject: return $this->readObjectWithoutTag();
                 case Tags::TagRef: return $this->readRef();
-                case Tags::TagError: throw new Exception($this->readString());
+                case Tags::TagError: throw new \Exception($this->readString());
                 default: return $this->unexpectedTag($tag);
             }
         }
@@ -319,7 +314,7 @@ namespace Hprose {
                 $s .= $this->stream->read(2);
             }
             elseif ($a > 0x7F) {
-                throw new Exception("bad utf-8 encoding");
+                throw new \Exception("bad utf-8 encoding");
             }
             return $s;
         }
@@ -366,7 +361,7 @@ namespace Hprose {
                         break;
                     }
                     default: {
-                        throw new Exception('bad utf-8 encoding');
+                        throw new \Exception('bad utf-8 encoding');
                     }
                 }
             }

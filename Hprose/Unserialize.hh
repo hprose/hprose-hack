@@ -14,15 +14,12 @@
  *                                                        *
  * hprose unserialize library for hack.                   *
  *                                                        *
- * LastModified: Feb 22, 2015                             *
+ * LastModified: Feb 24, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace Hprose {
-    require_once('Common.hh');
-    require_once('ClassManager.hh');
-
     // private functions
 
     /* $t is a 1 byte character. */
@@ -58,7 +55,7 @@ namespace Hprose {
             case 13: return $c . $o->s[$o->p++];
             case 14: return $c . $o->s[$o->p++] . $o->s[$o->p++];
         }
-        throw new Exception('bad utf-8 encoding');
+        throw new \Exception('bad utf-8 encoding');
     }
 
     function simple_read_string(\stdClass $o): string {
@@ -78,7 +75,7 @@ namespace Hprose {
                 case 13: $o->p += 2; break;
                 case 14: $o->p += 3; break;
                 case 15: $o->p += 4; ++$i; break;
-                default: throw new Exception('bad utf-8 encoding');
+                default: throw new \Exception('bad utf-8 encoding');
             }
         }
         $s = substr($o->s, $p, $o->p - $p);
@@ -111,9 +108,9 @@ namespace Hprose {
             case 's': return simple_read_string($o);
             case 'b': return simple_read_bytes($o);
             case 'g': return simple_read_guid($o);
-            case 'E': throw new Exception(simple_read_string($o));
+            case 'E': throw new \Exception(simple_read_string($o));
         }
-        throw new Exception("Can't unserialize '$s' as string.");
+        throw new \Exception("Can't unserialize '$s' as string.");
     }
 
     function fast_unserialize_string(\stdClass $o): string {
@@ -142,9 +139,9 @@ namespace Hprose {
             case 'b': return $o->r[] = simple_read_bytes($o);
             case 'g': return $o->r[] = simple_read_guid($o);
             case 'r': return read_ref($o);
-            case 'E': throw new Exception(simple_read_string($o));
+            case 'E': throw new \Exception(simple_read_string($o));
         }
-        throw new Exception("Can't unserialize '$s' as string.");
+        throw new \Exception("Can't unserialize '$s' as string.");
     }
 
     function simple_read_bytes(\stdClass $o): string {
@@ -351,9 +348,9 @@ namespace Hprose {
             case 'm': return simple_read_map($o);
             case 'c': simple_read_class($o); return simple_unserialize($o);
             case 'o': return simple_read_object($o);
-            case 'E': throw new Exception(simple_read_string($o));
+            case 'E': throw new \Exception(simple_read_string($o));
         }
-        throw new Exception("Can't unserialize '{$o->s}' in simple mode.");
+        throw new \Exception("Can't unserialize '{$o->s}' in simple mode.");
     }
 
     function fast_unserialize(\stdClass $o): mixed {
@@ -388,9 +385,9 @@ namespace Hprose {
             case 'c': fast_read_class($o); return fast_unserialize($o);
             case 'o': return fast_read_object($o);
             case 'r': return read_ref($o);
-            case 'E': throw new Exception(simple_read_string($o));
+            case 'E': throw new \Exception(simple_read_string($o));
         }
-        throw new Exception("Can't unserialize '{$o->s}'.");
+        throw new \Exception("Can't unserialize '{$o->s}'.");
     }
 }
 
@@ -409,18 +406,26 @@ namespace {
             $o->r = Vector<mixed> {};
             $v = Hprose\fast_unserialize($o);
         }
-        $s = (string)substr($s, $o->p);
         return $v;
     }
 
-    function hprose_unserialize_with_stream(StringStream $s, bool $simple = false): mixed {
-        $str = $s->readfull();
-        $v = hprose_unserialize($str, $simple);
-        $s->init($str);
+    function hprose_unserialize_with_stream(Hprose\StringStream $s, bool $simple = false): mixed {
+        $o = new stdClass();
+        $o->s = $s->readfull();
+        $o->p = 0;
+        $o->cr = Vector<array> {};
+        if ($simple) {
+            $v = Hprose\simple_unserialize($o);
+        }
+        else {
+            $o->r = Vector<mixed> {};
+            $v = Hprose\fast_unserialize($o);
+        }
+        $s->init((string)substr($o->s, $o->p));
         return $v;
     }
 
-    function hprose_unserialize_list_with_stream(StringStream $s): Vector {
+    function hprose_unserialize_list_with_stream(Hprose\StringStream $s): Vector {
         $o = new stdClass();
         $o->s = $s->readfull();
         $o->p = 0;

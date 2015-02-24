@@ -14,15 +14,12 @@
  *                                                        *
  * hprose serialize library for hack.                     *
  *                                                        *
- * LastModified: Feb 22, 2015                             *
+ * LastModified: Feb 24, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace Hprose {
-    require_once('Common.hh');
-    require_once('ClassManager.hh');
-
     // private functions
 
     function simple_serialize(mixed $v, \stdClass $ro): string {
@@ -130,18 +127,7 @@ namespace Hprose {
                 }
                 return $s . '}';
             }
-            elseif ($v instanceof Vector || $v instanceof Set) {
-                $c = count($v);
-                if ($c == 0) {
-                    return 'a{}';
-                }
-                $s = 'a' . $c . '{';
-                foreach ($v as $val) {
-                    $s .= simple_serialize($val, $ro);
-                }
-                return $s . '}';
-            }
-            elseif ($v instanceof Map) {
+            elseif ($v instanceof \ConstMap) {
                 $c = count($v);
                 if ($c == 0) {
                     return 'm{}';
@@ -150,6 +136,17 @@ namespace Hprose {
                 foreach ($v as $key => $val) {
                     $s .= simple_serialize($key, $ro) .
                           simple_serialize($val, $ro);
+                }
+                return $s . '}';
+            }
+            elseif ($v instanceof \ConstCollection) {
+                $c = count($v);
+                if ($c == 0) {
+                    return 'a{}';
+                }
+                $s = 'a' . $c . '{';
+                foreach ($v as $val) {
+                    $s .= simple_serialize($val, $ro);
                 }
                 return $s . '}';
             }
@@ -192,7 +189,7 @@ namespace Hprose {
             }
         }
         else {
-            throw new Exception('Not support to serialize this data');
+            throw new \Exception('Not support to serialize this data');
         }
     }
 
@@ -324,19 +321,7 @@ namespace Hprose {
                     }
                     return $s . '}';
                 }
-                elseif ($v instanceof Vector || $v instanceof Set) {
-                    $ro->or[$h] = $ro->count++;
-                    $c = count($v);
-                    if ($c == 0) {
-                        return 'a{}';
-                    }
-                    $s = 'a' . $c . '{';
-                    foreach ($v as $val) {
-                        $s .= fast_serialize($val, $ro);
-                    }
-                    return $s . '}';
-                }
-                elseif ($v instanceof Map) {
+                elseif ($v instanceof \ConstMap) {
                     $ro->or[$h] = $ro->count++;
                     $c = count($v);
                     if ($c == 0) {
@@ -346,6 +331,18 @@ namespace Hprose {
                     foreach ($v as $key => $val) {
                         $s .= fast_serialize($key, $ro) .
                               fast_serialize($val, $ro);
+                    }
+                    return $s . '}';
+                }
+                elseif ($v instanceof \ConstCollection) {
+                    $ro->or[$h] = $ro->count++;
+                    $c = count($v);
+                    if ($c == 0) {
+                        return 'a{}';
+                    }
+                    $s = 'a' . $c . '{';
+                    foreach ($v as $val) {
+                        $s .= fast_serialize($val, $ro);
                     }
                     return $s . '}';
                 }
@@ -390,7 +387,7 @@ namespace Hprose {
                 }
             }
         }
-        throw new Exception('Not support to serialize this data');
+        throw new \Exception('Not support to serialize this data');
     }
 }
 
@@ -401,7 +398,7 @@ namespace {
     }
 
     function hprose_serialize_string(string $s): string {
-        return 's' . ustrlen($s) . '"' . $s . '"';
+        return 's' . Hprose\ustrlen($s) . '"' . $s . '"';
     }
 
     function hprose_serialize_list(mixed $a, bool $simple = false): string {

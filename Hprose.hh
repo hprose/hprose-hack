@@ -14,22 +14,25 @@
  *                                                        *
  * hprose for hack.                                       *
  *                                                        *
- * LastModified: Feb 18, 2015                             *
+ * LastModified: Feb 24, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace {
-    require_once('Hprose/Common.hh');
-    require_once('Hprose/Tags.hh');
-    require_once('Hprose/ResultMode.hh');
-    require_once('Hprose/StringStream.hh');
-    require_once('Hprose/ClassManager.hh');
-    require_once('Hprose/Writer.hh');
-    require_once('Hprose/RawReader.hh');
-    require_once('Hprose/Reader.hh');
-    require_once('Hprose/Serialize.hh');
-    require_once('Hprose/Unserialize.hh');
+    require('Hprose/Common.hh');
+    require('Hprose/Tags.hh');
+    require('Hprose/ResultMode.hh');
+    require('Hprose/Stream.hh');
+    require('Hprose/StringStream.hh');
+    require('Hprose/ClassManager.hh');
+    require('Hprose/Writer.hh');
+    require('Hprose/RawReader.hh');
+    require('Hprose/Reader.hh');
+    require('Hprose/Serialize.hh');
+    require('Hprose/Unserialize.hh');
+    require('Hprose/Client.hh');
+    require('Hprose/HttpClient.hh');
 
     class_alias('Hprose\\_Bytes', 'HproseBytes');
     class_alias('Hprose\\_Map', 'HproseMap');
@@ -40,4 +43,6 @@ namespace {
     class_alias('Hprose\\Writer', 'HproseWriter');
     class_alias('Hprose\\RawReader', 'HproseRawReader');
     class_alias('Hprose\\Reader', 'HproseReader');
+    class_alias('Hprose\\Client', 'HproseClient');
+    class_alias('Hprose\\HttpClient', 'HproseHttpClient');
 }

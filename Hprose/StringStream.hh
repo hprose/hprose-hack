@@ -14,15 +14,12 @@
  *                                                        *
  * hprose string stream library for hack.                 *
  *                                                        *
- * LastModified: Feb 18, 2015                             *
+ * LastModified: Feb 24, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace Hprose {
-
-    require_once('Hprose/Stream.hh');
-
     class StringStream implements Stream {
         protected string $buffer;
         protected int $pos;

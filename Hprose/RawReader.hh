@@ -14,17 +14,12 @@
  *                                                        *
  * hprose raw reader class for hack.                      *
  *                                                        *
- * LastModified: Feb 22, 2015                             *
+ * LastModified: Feb 24, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace Hprose {
-    require_once('Common.hh');
-    require_once('Tags.hh');
-    require_once('Stream.hh');
-    require_once('StringStream.hh');
-
     class RawReader {
         public Stream $stream;
         function __construct(Stream $stream): void {
@@ -32,13 +27,13 @@ namespace Hprose {
         }
         public function unexpectedTag(string $tag, string $expectTags = ''): void {
             if ($tag && $expectTags) {
-                throw new Exception("Tag '" . $expectTags . "' expected, but '" . $tag . "' found in stream");
+                throw new \Exception("Tag '" . $expectTags . "' expected, but '" . $tag . "' found in stream");
             }
             else if ($tag) {
-                throw new Exception("Unexpected serialize tag '" . $tag . "' in stream");
+                throw new \Exception("Unexpected serialize tag '" . $tag . "' in stream");
             }
             else {
-                throw new Exception('No byte found in stream');
+                throw new \Exception('No byte found in stream');
             }
         }
         public function readRaw(Stream $ostream = NULL, string $tag = NULL): Stream {
@@ -135,7 +130,7 @@ namespace Hprose {
                 $s .= $this->stream->read(2);
             }
             elseif ($a > 0x7F) {
-                throw new Exception("bad utf-8 encoding");
+                throw new \Exception("bad utf-8 encoding");
             }
             $ostream->write($s);
         }
@@ -188,7 +183,7 @@ namespace Hprose {
                         break;
                     }
                     default: {
-                        throw new Exception('bad utf-8 encoding');
+                        throw new \Exception('bad utf-8 encoding');
                     }
                 }
             }

@@ -14,17 +14,12 @@
  *                                                        *
  * hprose writer class for hack.                          *
  *                                                        *
- * LastModified: Feb 18, 2015                             *
+ * LastModified: Feb 24, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace Hprose {
-    require_once('Common.hh');
-    require_once('Tags.hh');
-    require_once('Stream.hh');
-    require_once('ClassManager.hh');
-
     interface WriterRefer {
         public function set(mixed $val): void;
         public function write(Stream $stream, mixed $val): bool;
@@ -151,15 +146,14 @@ namespace Hprose {
                 elseif ($val instanceof \DateTime) {
                     $this->writeDateTimeWithRef($val);
                 }
-                elseif (($val instanceof Vector) ||
-                    ($val instanceof Set)) {
+                elseif ($val instanceof \ConstMap) {
+                    $this->writeMapWithRef($val);
+                }
+                elseif ($val instanceof \ConstCollection) {
                     $this->writeListWithRef($val);
                 }
                 elseif ($val instanceof _Map) {
                     $this->writeMapWithRef($val->value);
-                }
-                elseif ($val instanceof Map) {
-                    $this->writeMapWithRef($val);
                 }
                 elseif ($val instanceof \stdClass) {
                     $this->writeStdClassWithRef($val);
@@ -169,7 +163,7 @@ namespace Hprose {
                 }
             }
             else {
-                throw new Exception('Not support to serialize this data');
+                throw new \Exception('Not support to serialize this data');
             }
         }
         public function writeInteger(int $integer): void {
