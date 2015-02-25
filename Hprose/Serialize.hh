@@ -14,7 +14,7 @@
  *                                                        *
  * hprose serialize library for hack.                     *
  *                                                        *
- * LastModified: Feb 24, 2015                             *
+ * LastModified: Feb 25, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -23,7 +23,7 @@ namespace Hprose {
     // private functions
 
     function simple_serialize(mixed $v, \stdClass $ro): string {
-        if ($v === NULL) {
+        if ($v === null) {
             return 'n';
         }
         elseif (is_int($v)) {
@@ -127,7 +127,7 @@ namespace Hprose {
                 }
                 return $s . '}';
             }
-            elseif ($v instanceof \ConstMap) {
+            elseif ($v instanceof KeyedTraversable) {
                 $c = count($v);
                 if ($c == 0) {
                     return 'm{}';
@@ -139,7 +139,7 @@ namespace Hprose {
                 }
                 return $s . '}';
             }
-            elseif ($v instanceof \ConstCollection) {
+            elseif ($v instanceof Traversable) {
                 $c = count($v);
                 if ($c == 0) {
                     return 'a{}';
@@ -153,37 +153,38 @@ namespace Hprose {
             else {
                 $class = get_class($v);
                 $alias = ClassManager::getClassAlias($class);
-                $a = (array)$v;
                 if ($ro->cr->contains($alias)) {
                     $index = $ro->cr[$alias];
-                    $fields = $ro->fr[$index];
-                    $c = count($fields);
+                    $props = $ro->pr[$index];
                     $s = '';
                 }
                 else {
                     $s = 'c' . ustrlen($alias) . '"' . $alias . '"';
-                    $fields = array_keys($a);
-                    $c = count($fields);
+                    $reflector = new \ReflectionClass($v);
+                    $props = $reflector->getProperties(
+                        \ReflectionProperty::IS_PUBLIC |
+                        \ReflectionProperty::IS_PROTECTED |
+                        \ReflectionProperty::IS_PRIVATE);
+                    $c = count($props);
                     if ($c > 0) {
                         $s .= $c . '{';
-                        foreach ($fields as $field) {
-                            if ($field[0] === "\0") {
-                                $field = substr($field, strpos($field, "\0", 1) + 1);
-                            }
-                            $s .= 's' . ustrlen($field) . '"' . $field . '"';
+                        foreach ($props as $prop) {
+                            $prop->setAccessible(true);
+                            $name = $prop->getName();
+                            $s .= 's' . ustrlen($name) . '"' . $name . '"';
                         }
                         $s .= '}';
                     }
                     else {
                         $s .= '{}';
                     }
-                    $index = count($ro->fr);
+                    $index = count($ro->pr);
                     $ro->cr[$alias] = $index;
-                    $ro->fr->add($fields);
+                    $ro->pr->add($props);
                 }
                 $s .= 'o' . $index . '{';
-                for ($i = 0; $i < $c; ++$i) {
-                    $s .= simple_serialize($a[$fields[$i]], $ro);
+                foreach ($props as $prop) {
+                    $s .= simple_serialize($prop->getValue($v), $ro);
                 }
                 return $s . '}';
             }
@@ -194,7 +195,7 @@ namespace Hprose {
     }
 
     function fast_serialize(mixed $v, \stdClass $ro): string {
-        if ($v === NULL) {
+        if ($v === null) {
             return 'n';
         }
         elseif (is_int($v)) {
@@ -321,7 +322,7 @@ namespace Hprose {
                     }
                     return $s . '}';
                 }
-                elseif ($v instanceof \ConstMap) {
+                elseif ($v instanceof KeyedTraversable) {
                     $ro->or[$h] = $ro->count++;
                     $c = count($v);
                     if ($c == 0) {
@@ -334,7 +335,7 @@ namespace Hprose {
                     }
                     return $s . '}';
                 }
-                elseif ($v instanceof \ConstCollection) {
+                elseif ($v instanceof Traversable) {
                     $ro->or[$h] = $ro->count++;
                     $c = count($v);
                     if ($c == 0) {
@@ -349,39 +350,40 @@ namespace Hprose {
                 else {
                     $class = get_class($v);
                     $alias = ClassManager::getClassAlias($class);
-                    $a = (array)$v;
                     if ($ro->cr->contains($alias)) {
                         $index = $ro->cr[$alias];
-                        $fields = $ro->fr[$index];
-                        $c = count($fields);
+                        $props = $ro->pr[$index];
                         $s = '';
                     }
                     else {
                         $s = 'c' . ustrlen($alias) . '"' . $alias . '"';
-                        $fields = array_keys($a);
-                        $c = count($fields);
+                        $reflector = new \ReflectionClass($v);
+                        $props = $reflector->getProperties(
+                            \ReflectionProperty::IS_PUBLIC |
+                            \ReflectionProperty::IS_PROTECTED |
+                            \ReflectionProperty::IS_PRIVATE);
+                        $c = count($props);
                         if ($c > 0) {
                             $s .= $c . '{';
-                            foreach ($fields as $field) {
-                                if ($field[0] === "\0") {
-                                    $field = substr($field, strpos($field, "\0", 1) + 1);
-                                }
-                                $ro->sr[$field] = $ro->count++;
-                                $s .= 's' . ustrlen($field) . '"' . $field . '"';
+                            foreach ($props as $prop) {
+                                $prop->setAccessible(true);
+                                $name = $prop->getName();
+                                $ro->sr[$name] = $ro->count++;
+                                $s .= 's' . ustrlen($name) . '"' . $name . '"';
                             }
                             $s .= '}';
                         }
                         else {
                             $s .= '{}';
                         }
-                        $index = count($ro->fr);
+                        $index = count($ro->pr);
                         $ro->cr[$alias] = $index;
-                        $ro->fr->add($fields);
+                        $ro->pr->add($props);
                     }
                     $ro->or[$h] = $ro->count++;
                     $s .= 'o' . $index . '{';
-                    for ($i = 0; $i < $c; ++$i) {
-                        $s .= fast_serialize($a[$fields[$i]], $ro);
+                    foreach ($props as $prop) {
+                        $s .= fast_serialize($prop->getValue($v), $ro);
                     }
                     return $s . '}';
                 }
@@ -401,12 +403,12 @@ namespace {
         return 's' . Hprose\ustrlen($s) . '"' . $s . '"';
     }
 
-    function hprose_serialize_list(mixed $a, bool $simple = false): string {
+    function hprose_serialize_list(Traversable<mixed> $a, bool $simple = false): string {
         $c = count($a);
         if ($c == 0) return 'a{}';
         $ro = new stdClass();
-        $ro->cr = Map<string, int> {};
-        $ro->fr = Vector<array<string>> {};
+        $ro->cr = Map {};
+        $ro->pr = Vector {};
         if ($simple) {
             $s = 'a' . $c . '{';
             foreach ($a as $v) {
@@ -414,10 +416,10 @@ namespace {
             }
             return $s . '}';
         }
-        $ro->sr = Map<string, int> {};
-        $ro->br = Map<string, int> {};
-        $ro->or = Map<string, int> {};
-        $ro->r = Vector<mixed> {};
+        $ro->sr = Map {};
+        $ro->br = Map {};
+        $ro->or = Map {};
+        $ro->r = Vector {};
         $ro->count = 1;
         $s = 'a' . $c . '{';
         foreach ($a as $v) {
@@ -427,15 +429,15 @@ namespace {
     }
     function hprose_serialize(mixed $v, bool $simple = false): string {
         $ro = new stdClass();
-        $ro->cr = Map<string, int> {};
-        $ro->fr = Vector<array<string>> {};
+        $ro->cr = Map {};
+        $ro->pr = Vector {};
         if ($simple) {
             return Hprose\simple_serialize($v, $ro);
         }
-        $ro->sr = Map<string, int> {};
-        $ro->br = Map<string, int> {};
-        $ro->or = Map<string, int> {};
-        $ro->r = Vector<mixed> {};
+        $ro->sr = Map {};
+        $ro->br = Map {};
+        $ro->or = Map {};
+        $ro->r = Vector {};
         $ro->count = 0;
         return Hprose\fast_serialize($v, $ro);
     }

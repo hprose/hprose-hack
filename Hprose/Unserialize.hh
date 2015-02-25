@@ -14,7 +14,7 @@
  *                                                        *
  * hprose unserialize library for hack.                   *
  *                                                        *
- * LastModified: Feb 24, 2015                             *
+ * LastModified: Feb 26, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -40,7 +40,7 @@ namespace Hprose {
         return $o->r[(int)readuntil($o, ';')];
     }
 
-    function simple_read_utf8char(\stdClass $o): string {
+    function read_utf8char(\stdClass $o): string {
         $c = $o->s[$o->p++];
         switch (ord($c) >> 4) {
             case 0:
@@ -58,7 +58,7 @@ namespace Hprose {
         throw new \Exception('bad utf-8 encoding');
     }
 
-    function simple_read_string(\stdClass $o): string {
+    function read_string(\stdClass $o): string {
         $l = (int)readuntil($o, '"');
         $p = $o->p;
         for ($i = 0; $i < $l; ++$i) {
@@ -85,79 +85,37 @@ namespace Hprose {
 
     function simple_unserialize_string(\stdClass $o): string {
         switch ($o->s[$o->p++]) {
-            case '0': return '0';
-            case '1': return '1';
-            case '2': return '2';
-            case '3': return '3';
-            case '4': return '4';
-            case '5': return '5';
-            case '6': return '6';
-            case '7': return '7';
-            case '8': return '8';
-            case '9': return '9';
-            case 'n': return NULL;
-            case 'e': return '';
-            case 't': return 'true';
-            case 'f': return 'false';
-            case 'N': return 'NaN';
-            case 'I': return $o->s[$o->p++] == '-' ? '-Infinite' : 'Infinite';
-            case 'i': return readuntil($o, ';');
-            case 'l': return readuntil($o, ';');
-            case 'd': return readuntil($o, ';');
-            case 'u': return simple_read_utf8char($o);
-            case 's': return simple_read_string($o);
-            case 'b': return simple_read_bytes($o);
-            case 'g': return simple_read_guid($o);
-            case 'E': throw new \Exception(simple_read_string($o));
+            case 'u': return read_utf8char($o);
+            case 's': return read_string($o);
+            case 'E': throw new \Exception(simple_unserialize_string($o));
         }
-        throw new \Exception("Can't unserialize '$s' as string.");
+        throw new \Exception("Can't unserialize '$o->s' as string.");
     }
 
     function fast_unserialize_string(\stdClass $o): string {
         switch ($o->s[$o->p++]) {
-            case '0': return '0';
-            case '1': return '1';
-            case '2': return '2';
-            case '3': return '3';
-            case '4': return '4';
-            case '5': return '5';
-            case '6': return '6';
-            case '7': return '7';
-            case '8': return '8';
-            case '9': return '9';
-            case 'n': return NULL;
-            case 'e': return '';
-            case 't': return 'true';
-            case 'f': return 'false';
-            case 'N': return 'NaN';
-            case 'I': return $o->s[$o->p++] == '-' ? '-Infinite' : 'Infinite';
-            case 'i': return readuntil($o, ';');
-            case 'l': return readuntil($o, ';');
-            case 'd': return readuntil($o, ';');
-            case 'u': return simple_read_utf8char($o);
-            case 's': return $o->r[] = simple_read_string($o);
-            case 'b': return $o->r[] = simple_read_bytes($o);
-            case 'g': return $o->r[] = simple_read_guid($o);
-            case 'r': return read_ref($o);
-            case 'E': throw new \Exception(simple_read_string($o));
+            case 'u': return read_utf8char($o);
+            case 's': return $o->r[] = read_string($o);
+            case 'r': return (string)read_ref($o);
+            case 'E': throw new \Exception(fast_unserialize_string($o));
         }
-        throw new \Exception("Can't unserialize '$s' as string.");
+        throw new \Exception("Can't unserialize '$o->s' as string.");
     }
 
-    function simple_read_bytes(\stdClass $o): string {
+    function read_bytes(\stdClass $o): string {
         $c = (int)readuntil($o, '"');
         $bytes = substr($o->s, $o->p, $c);
         $o->p += $c + 1;
         return $bytes;
     }
 
-    function simple_read_guid(\stdClass $o): string {
+    function read_guid(\stdClass $o): string {
         $g = substr($o->s, $o->p + 1, 36);
         $o->p += 38;
         return $g;
     }
 
-    function read_time(\stdClass $o): array {
+    function __read_time(\stdClass $o): (string, string) {
         $hms = substr($o->s, $o->p, 6);
         $o->p += 6;
         $u = '000000';
@@ -182,13 +140,13 @@ namespace Hprose {
         return tuple($hms.$u, $tag);
     }
 
-    function simple_read_date(\stdClass $o): \DateTime {
+    function read_date(\stdClass $o): \DateTime {
         $ymd = substr($o->s, $o->p, 8);
         $hmsu = '000000000000';
         $o->p += 8;
         $tag = $o->s[$o->p++];
         if ($tag == 'T') {
-            list($hmsu, $tag) = read_time($o);
+            list($hmsu, $tag) = __read_time($o);
         }
         if ($tag == 'Z') {
             $date = date_create_from_format('YmdHisu', $ymd.$hmsu, timezone_open('UTC'));
@@ -199,8 +157,8 @@ namespace Hprose {
         return $date;
     }
 
-    function simple_read_time(\stdClass $o): \DateTime {
-        list($hmsu, $tag) = read_time($o);
+    function read_time(\stdClass $o): \DateTime {
+        list($hmsu, $tag) = __read_time($o);
         if ($tag == 'Z') {
             $date = date_create_from_format('Hisu', $hmsu, timezone_open('UTC'));
         }
@@ -210,7 +168,7 @@ namespace Hprose {
         return $date;
     }
 
-    function simple_read_list(\stdClass $o): Vector {
+    function simple_read_list(\stdClass $o): Vector<mixed> {
         $a = Vector {};
         $c = (int)readuntil($o, '{');
         for ($i = 0; $i < $c; ++$i) {
@@ -220,7 +178,7 @@ namespace Hprose {
         return $a;
     }
 
-    function fast_read_list(\stdClass $o): Vector {
+    function fast_read_list(\stdClass $o): Vector<mixed> {
         $a = Vector {};
         $o->r->add($a);
         $c = (int)readuntil($o, '{');
@@ -231,23 +189,23 @@ namespace Hprose {
         return $a;
     }
 
-    function simple_read_map(\stdClass $o): Map {
+    function simple_read_map(\stdClass $o): Map<arraykey, mixed> {
         $m = Map {};
         $c = (int)readuntil($o, '{');
         for ($i = 0; $i < $c; ++$i) {
-            $k = simple_unserialize($o);
+            $k = simple_unserialize_key($o);
             $m[$k] = simple_unserialize($o);
         }
         ++$o->p;
         return $m;
     }
 
-    function fast_read_map(\stdClass $o): Map {
+    function fast_read_map(\stdClass $o): Map<arraykey, mixed> {
         $m = Map {};
         $o->r->add($m);
         $c = (int)readuntil($o, '{');
         for ($i = 0; $i < $c; ++$i) {
-            $k = fast_unserialize($o);
+            $k = fast_unserialize_key($o);
             $m[$k] = fast_unserialize($o);
         }
         ++$o->p;
@@ -255,41 +213,50 @@ namespace Hprose {
     }
 
     function simple_read_class(\stdClass $o): void {
-        $classname = ClassManager::getClass(simple_read_string($o));
+        $classname = ClassManager::getClass(read_string($o));
         $c = (int)readuntil($o, '{');
-        $fields = Vector<string> {};
+        $props = Vector {};
         for ($i = 0; $i < $c; ++$i) {
-            $fields->add(simple_unserialize_string($o));
+            $props->add(simple_unserialize_string($o));
         }
         ++$o->p;
-        $o->cr->add(tuple($classname, $fields));
+        $o->cr->add(tuple($classname, $props));
     }
 
     function fast_read_class(\stdClass $o): void {
-        $classname = ClassManager::getClass(simple_read_string($o));
+        $classname = ClassManager::getClass(read_string($o));
         $c = (int)readuntil($o, '{');
-        $fields = Vector<string> {};
+        $props = Vector {};
         for ($i = 0; $i < $c; ++$i) {
-            $fields->add(fast_unserialize_string($o));
+            $props->add(fast_unserialize_string($o));
         }
         ++$o->p;
-        $o->cr->add(tuple($classname, $fields));
+        $o->cr->add(tuple($classname, $props));
     }
 
     function simple_read_object(\stdClass $o): mixed {
-        list($classname, $fields) = $o->cr[(int)readuntil($o, '{')];
-        $obj = new $classname;
-        $c = count($fields);
-        $reflector = new \ReflectionClass($classname);
-        for ($i = 0; $i < $c; ++$i) {
-            $field = $fields[$i];
-            if ($reflector->hasProperty($field)) {
-                $property = $reflector->getProperty($field);
-                $property->setAccessible(true);
-                $property->setValue($obj, simple_unserialize($o));
+        list($classname, $props) = $o->cr[(int)readuntil($o, '{')];
+        if ($classname == 'stdClass') {
+            $obj = new \stdClass();
+            foreach ($props as $prop) {
+                // UNSAFE
+                $obj->$prop = simple_unserialize($o);
+            }
+        }
+        else {
+            $reflector = new \ReflectionClass($classname);
+            if ($reflector->getConstructor() === null) {
+                $obj = $reflector->newInstanceWithoutConstructor();
             }
             else {
-                $obj->$field = simple_unserialize($o);
+                $obj = $reflector->newInstance();
+            }
+            foreach ($props as $prop) {
+                if ($reflector->hasProperty($prop)) {
+                    $property = $reflector->getProperty($prop);
+                    $property->setAccessible(true);
+                    $property->setValue($obj, simple_unserialize($o));
+                }
             }
         }
         ++$o->p;
@@ -297,24 +264,64 @@ namespace Hprose {
     }
 
     function fast_read_object(\stdClass $o): mixed {
-        list($classname, $fields) = $o->cr[(int)readuntil($o, '{')];
-        $obj = new $classname;
-        $o->r->add($obj);
-        $c = count($fields);
+        list($classname, $props) = $o->cr[(int)readuntil($o, '{')];
+        if ($classname == 'stdClass') {
+            $obj = new \stdClass();
+            $o->r->add($obj);
+            foreach ($props as $prop) {
+                // UNSAFE
+                $obj->$prop = fast_unserialize($o);
+            }
+        }
+        else {
             $reflector = new \ReflectionClass($classname);
-            for ($i = 0; $i < $c; ++$i) {
-                $field = $fields[$i];
-                if ($reflector->hasProperty($field)) {
-                    $property = $reflector->getProperty($field);
+            if ($reflector->getConstructor() === null) {
+                $obj = $reflector->newInstanceWithoutConstructor();
+            }
+            else {
+                $obj = $reflector->newInstance();
+            }
+            $o->r->add($obj);
+            foreach ($props as $prop) {
+                if ($reflector->hasProperty($prop)) {
+                    $property = $reflector->getProperty($prop);
                     $property->setAccessible(true);
                     $property->setValue($obj, fast_unserialize($o));
                 }
-                else {
-                    $obj->$field = fast_unserialize($o);
-                }
             }
+        }
         ++$o->p;
         return $obj;
+    }
+
+    function simple_unserialize_key(\stdClass $o): arraykey {
+        switch ($o->s[$o->p++]) {
+            case '0': return 0;
+            case '1': return 1;
+            case '2': return 2;
+            case '3': return 3;
+            case '4': return 4;
+            case '5': return 5;
+            case '6': return 6;
+            case '7': return 7;
+            case '8': return 8;
+            case '9': return 9;
+            case 'n': return 'null';
+            case 'e': return '';
+            case 't': return 'true';
+            case 'f': return 'false';
+            case 'N': return (string)log(-1);
+            case 'I': return (string)($o->s[$o->p++] == '-' ? log(0) : -log(0));
+            case 'i': return (int)readuntil($o, ';');
+            case 'l': return readuntil($o, ';');
+            case 'd': return readuntil($o, ';');
+            case 'u': return read_utf8char($o);
+            case 's': return read_string($o);
+            case 'b': return read_bytes($o);
+            case 'g': return read_guid($o);
+            case 'E': throw new \Exception(simple_unserialize_string($o));
+        }
+        throw new \Exception("Can't unserialize '{$o->s}' in simple mode.");
     }
 
     function simple_unserialize(\stdClass $o): mixed {
@@ -329,7 +336,7 @@ namespace Hprose {
             case '7': return 7;
             case '8': return 8;
             case '9': return 9;
-            case 'n': return NULL;
+            case 'n': return null;
             case 'e': return '';
             case 't': return true;
             case 'f': return false;
@@ -337,20 +344,51 @@ namespace Hprose {
             case 'I': return ($o->s[$o->p++] == '-' ? log(0) : -log(0));
             case 'i': return (int)readuntil($o, ';');
             case 'l': return readuntil($o, ';');
-            case 'd': return (double)readuntil($o, ';');
-            case 'u': return simple_read_utf8char($o);
-            case 's': return simple_read_string($o);
-            case 'b': return simple_read_bytes($o);
-            case 'g': return simple_read_guid($o);
-            case 'D': return simple_read_date($o);
-            case 'T': return simple_read_time($o);
+            case 'd': return (float)readuntil($o, ';');
+            case 'u': return read_utf8char($o);
+            case 's': return read_string($o);
+            case 'b': return read_bytes($o);
+            case 'g': return read_guid($o);
+            case 'D': return read_date($o);
+            case 'T': return read_time($o);
             case 'a': return simple_read_list($o);
             case 'm': return simple_read_map($o);
             case 'c': simple_read_class($o); return simple_unserialize($o);
             case 'o': return simple_read_object($o);
-            case 'E': throw new \Exception(simple_read_string($o));
+            case 'E': throw new \Exception(simple_unserialize_string($o));
         }
         throw new \Exception("Can't unserialize '{$o->s}' in simple mode.");
+    }
+
+    function fast_unserialize_key(\stdClass $o): arraykey {
+        switch ($o->s[$o->p++]) {
+            case '0': return 0;
+            case '1': return 1;
+            case '2': return 2;
+            case '3': return 3;
+            case '4': return 4;
+            case '5': return 5;
+            case '6': return 6;
+            case '7': return 7;
+            case '8': return 8;
+            case '9': return 9;
+            case 'n': return 'null';
+            case 'e': return '';
+            case 't': return 'true';
+            case 'f': return 'false';
+            case 'N': return (string)log(-1);
+            case 'I': return (string)($o->s[$o->p++] == '-' ? log(0) : -log(0));
+            case 'i': return (int)readuntil($o, ';');
+            case 'l': return readuntil($o, ';');
+            case 'd': return readuntil($o, ';');
+            case 'u': return read_utf8char($o);
+            case 's': return $o->r[] = read_string($o);
+            case 'b': return $o->r[] = read_bytes($o);
+            case 'g': return $o->r[] = read_guid($o);
+            case 'r': return (string)read_ref($o);
+            case 'E': throw new \Exception(fast_unserialize_string($o));
+        }
+        throw new \Exception("Can't unserialize '{$o->s}'.");
     }
 
     function fast_unserialize(\stdClass $o): mixed {
@@ -365,7 +403,7 @@ namespace Hprose {
             case '7': return 7;
             case '8': return 8;
             case '9': return 9;
-            case 'n': return NULL;
+            case 'n': return null;
             case 'e': return '';
             case 't': return true;
             case 'f': return false;
@@ -373,19 +411,19 @@ namespace Hprose {
             case 'I': return ($o->s[$o->p++] == '-' ? log(0) : -log(0));
             case 'i': return (int)readuntil($o, ';');
             case 'l': return readuntil($o, ';');
-            case 'd': return (double)readuntil($o, ';');
-            case 'u': return simple_read_utf8char($o);
-            case 's': return $o->r[] = simple_read_string($o);
-            case 'b': return $o->r[] = simple_read_bytes($o);
-            case 'g': return $o->r[] = simple_read_guid($o);
-            case 'D': return $o->r[] = simple_read_date($o);
-            case 'T': return $o->r[] = simple_read_time($o);
+            case 'd': return (float)readuntil($o, ';');
+            case 'u': return read_utf8char($o);
+            case 's': return $o->r[] = read_string($o);
+            case 'b': return $o->r[] = read_bytes($o);
+            case 'g': return $o->r[] = read_guid($o);
+            case 'D': return $o->r[] = read_date($o);
+            case 'T': return $o->r[] = read_time($o);
             case 'a': return fast_read_list($o);
             case 'm': return fast_read_map($o);
             case 'c': fast_read_class($o); return fast_unserialize($o);
             case 'o': return fast_read_object($o);
             case 'r': return read_ref($o);
-            case 'E': throw new \Exception(simple_read_string($o));
+            case 'E': throw new \Exception(fast_unserialize_string($o));
         }
         throw new \Exception("Can't unserialize '{$o->s}'.");
     }
@@ -398,41 +436,62 @@ namespace {
         $o = new stdClass();
         $o->s = $s;
         $o->p = 0;
-        $o->cr = Vector<array> {};
+        $o->cr = Vector {};
         if ($simple) {
             $v = Hprose\simple_unserialize($o);
         }
         else {
-            $o->r = Vector<mixed> {};
+            $o->r = Vector {};
             $v = Hprose\fast_unserialize($o);
         }
         return $v;
     }
 
-    function hprose_unserialize_with_stream(Hprose\StringStream $s, bool $simple = false): mixed {
+    function hprose_unserialize_with_stream(Hprose\Stream $s, bool $simple = false): mixed {
         $o = new stdClass();
+        $s->mark();
         $o->s = $s->readfull();
         $o->p = 0;
-        $o->cr = Vector<array> {};
+        $o->cr = Vector {};
         if ($simple) {
             $v = Hprose\simple_unserialize($o);
         }
         else {
-            $o->r = Vector<mixed> {};
+            $o->r = Vector {};
             $v = Hprose\fast_unserialize($o);
         }
-        $s->init((string)substr($o->s, $o->p));
+        $s->reset();
+        $s->skip($o->p);
         return $v;
     }
 
-    function hprose_unserialize_list_with_stream(Hprose\StringStream $s): Vector {
+    function hprose_unserialize_string_with_stream(Hprose\Stream $s, bool $simple = false): string {
         $o = new stdClass();
+        $s->mark();
         $o->s = $s->readfull();
         $o->p = 0;
-        $o->cr = Vector<array> {};
-        $o->r = Vector<mixed> {};
+        if ($simple) {
+            $v = Hprose\simple_unserialize_string($o);
+        }
+        else {
+            $o->r = Vector {};
+            $v = Hprose\fast_unserialize_string($o);
+        }
+        $s->reset();
+        $s->skip($o->p);
+        return $v;
+    }
+
+    function hprose_unserialize_list_with_stream(Hprose\Stream $s): Vector<mixed> {
+        $o = new stdClass();
+        $s->mark();
+        $o->s = $s->readfull();
+        $o->p = 0;
+        $o->cr = Vector {};
+        $o->r = Vector {};
         $v = Hprose\fast_read_list($o);
-        $s->init((string)substr($o->s, $o->p));
+        $s->reset();
+        $s->skip($o->p);
         return $v;
     }
 

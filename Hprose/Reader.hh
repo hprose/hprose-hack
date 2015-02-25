@@ -14,7 +14,7 @@
  *                                                        *
  * hprose reader class for hack.                          *
  *                                                        *
- * LastModified: Feb 25, 2015                             *
+ * LastModified: Feb 26, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -37,10 +37,7 @@ namespace Hprose {
     }
 
     class RealReaderRefer implements ReaderRefer {
-        private Vector<mixed> $ref;
-        function __construct() {
-            $this->reset();
-        }
+        private Vector<mixed> $ref = Vector {};
         public function set(mixed $val): void {
             $this->ref->add($val);
         }
@@ -48,21 +45,23 @@ namespace Hprose {
             return $this->ref[$index];
         }
         public function reset(): void {
-            $this->ref = Vector<mixed> {};
+            $this->ref->clear();
         }
     }
 
+
     class Reader extends RawReader {
-        private Vector<array<string, Vector<string>>> $classref;
+        private Vector<(string, Vector<string>)> $classref = Vector {};
         private ReaderRefer $refer;
-        function __construct(Stream $stream, bool $simple = false): void {
+        public function __construct(Stream $stream, bool $simple = false) {
             parent::__construct($stream);
-            $this->classref = Vector<array<string, Vector<string>>> {};
-            $this->refer = $simple ? new FakeReaderRefer() : new RealReaderRefer();
+            $this->refer = $simple ?
+                           new FakeReaderRefer() :
+                           new RealReaderRefer();
         }
         public function unserialize(): mixed {
             $tag = $this->stream->getc();
-            $result = NULL;
+            $result = null;
             switch ($tag) {
                 case '0': return 0;
                 case '1': return 1;
@@ -77,7 +76,7 @@ namespace Hprose {
                 case Tags::TagInteger: return $this->readIntegerWithoutTag();
                 case Tags::TagLong: return $this->readLongWithoutTag();
                 case Tags::TagDouble: return $this->readDoubleWithoutTag();
-                case Tags::TagNull: return NULL;
+                case Tags::TagNull: return null;
                 case Tags::TagEmpty: return '';
                 case Tags::TagTrue: return true;
                 case Tags::TagFalse: return false;
@@ -94,8 +93,40 @@ namespace Hprose {
                 case Tags::TagClass: $this->readClass(); return $this->readObject();
                 case Tags::TagObject: return $this->readObjectWithoutTag();
                 case Tags::TagRef: return $this->readRef();
-                case Tags::TagError: throw new \Exception($this->readString());
-                default: return $this->unexpectedTag($tag);
+                case Tags::TagError: throw new \Exception($this->_readString());
+                default: throw $this->unexpectedTag($tag);
+            }
+        }
+        public function unserialize_key(): arraykey {
+            $tag = $this->stream->getc();
+            $result = null;
+            switch ($tag) {
+                case '0': return 0;
+                case '1': return 1;
+                case '2': return 2;
+                case '3': return 3;
+                case '4': return 4;
+                case '5': return 5;
+                case '6': return 6;
+                case '7': return 7;
+                case '8': return 8;
+                case '9': return 9;
+                case Tags::TagInteger: return $this->readIntegerWithoutTag();
+                case Tags::TagLong:
+                case Tags::TagDouble: return $this->readLongWithoutTag();
+                case Tags::TagNull: return 'null';
+                case Tags::TagEmpty: return '';
+                case Tags::TagTrue: return 'true';
+                case Tags::TagFalse: return 'false';
+                case Tags::TagNaN: return (string)log(-1);
+                case Tags::TagInfinity: return (string)$this->readInfinityWithoutTag();
+                case Tags::TagBytes: return $this->readBytesWithoutTag();
+                case Tags::TagUTF8Char: return $this->readUTF8CharWithoutTag();
+                case Tags::TagString: return $this->readStringWithoutTag();
+                case Tags::TagGuid: return $this->readGuidWithoutTag();
+                case Tags::TagRef: return (string)$this->readRef();
+                case Tags::TagError: throw new \Exception($this->_readString());
+                default: throw $this->unexpectedTag($tag);
             }
         }
         public function checkTag(string $expectTag, string $tag = ''): void {
@@ -103,7 +134,7 @@ namespace Hprose {
                 $tag = $this->stream->getc();
             }
             if ($tag != $expectTag) {
-                $this->unexpectedTag($tag, $expectTag);
+                throw $this->unexpectedTag($tag, $expectTag);
             }
         }
         public function checkTags(string $expectTags, string $tag = ''): string {
@@ -111,7 +142,7 @@ namespace Hprose {
                 $tag = $this->stream->getc();
             }
             if (!in_array($tag, $expectTags)) {
-                $this->unexpectedTag($tag, implode('', $expectTags));
+                throw $this->unexpectedTag($tag, implode('', $expectTags));
             }
             return $tag;
         }
@@ -132,7 +163,7 @@ namespace Hprose {
                 case '8': return 8;
                 case '9': return 9;
                 case Tags::TagInteger: return $this->readIntegerWithoutTag();
-                default: $this->unexpectedTag($tag);
+                default: throw $this->unexpectedTag($tag);
             }
         }
         public function readLongWithoutTag(): string {
@@ -153,7 +184,7 @@ namespace Hprose {
                 case '9': return '9';
                 case Tags::TagInteger:
                 case Tags::TagLong: return $this->readLongWithoutTag();
-                default: $this->unexpectedTag($tag);
+                default: throw $this->unexpectedTag($tag);
             }
         }
         public function readDoubleWithoutTag(): float {
@@ -162,22 +193,22 @@ namespace Hprose {
         public function readDouble(): float {
             $tag = $this->stream->getc();
             switch ($tag) {
-                case '0': return 0;
-                case '1': return 1;
-                case '2': return 2;
-                case '3': return 3;
-                case '4': return 4;
-                case '5': return 5;
-                case '6': return 6;
-                case '7': return 7;
-                case '8': return 8;
-                case '9': return 9;
+                case '0': return 0.0;
+                case '1': return 1.0;
+                case '2': return 2.0;
+                case '3': return 3.0;
+                case '4': return 4.0;
+                case '5': return 5.0;
+                case '6': return 6.0;
+                case '7': return 7.0;
+                case '8': return 8.0;
+                case '9': return 9.0;
                 case Tags::TagInteger:
                 case Tags::TagLong:
                 case Tags::TagDouble: return $this->readDoubleWithoutTag();
                 case Tags::TagNaN: return log(-1);
                 case Tags::TagInfinity: return $this->readInfinityWithoutTag();
-                default: $this->unexpectedTag($tag);
+                default: throw $this->unexpectedTag($tag);
             }
         }
         public function readNaN(): float {
@@ -193,7 +224,7 @@ namespace Hprose {
         }
         public function readNull(): mixed {
             $this->checkTag(Tags::TagNull);
-            return NULL;
+            return null;
         }
         public function readEmpty(): string {
             $this->checkTag(Tags::TagEmpty);
@@ -204,7 +235,7 @@ namespace Hprose {
             switch ($tag) {
                 case Tags::TagTrue: return true;
                 case Tags::TagFalse: return false;
-                default: $this->unexpectedTag($tag);
+                default: throw $this->unexpectedTag($tag);
             }
         }
         public function readDateWithoutTag(): \DateTime {
@@ -240,13 +271,13 @@ namespace Hprose {
             $this->refer->set($date);
             return $date;
         }
-        public function readDate(): \DateTime {
+        public function readDate(): mixed {
             $tag = $this->stream->getc();
             switch ($tag) {
-                case Tags::TagNull: return NULL;
+                case Tags::TagNull: return null;
                 case Tags::TagDate: return $this->readDateWithoutTag();
                 case Tags::TagRef: return $this->readRef();
-                default: $this->unexpectedTag($tag);
+                default: throw $this->unexpectedTag($tag);
             }
         }
         public function readTimeWithoutTag(): \DateTime {
@@ -277,13 +308,13 @@ namespace Hprose {
             $this->refer->set($time);
             return $time;
         }
-        public function readTime(): \DateTime {
+        public function readTime(): mixed {
             $tag = $this->stream->getc();
             switch ($tag) {
-                case Tags::TagNull: return NULL;
+                case Tags::TagNull: return null;
                 case Tags::TagTime: return $this->readTimeWithoutTag();
                 case Tags::TagRef: return $this->readRef();
-                default: $this->unexpectedTag($tag);
+                default: throw $this->unexpectedTag($tag);
             }
         }
         public function readBytesWithoutTag(): string {
@@ -293,14 +324,14 @@ namespace Hprose {
             $this->refer->set($bytes);
             return $bytes;
         }
-        public function readBytes(): string {
+        public function readBytes(): mixed {
             $tag = $this->stream->getc();
             switch ($tag) {
-                case Tags::TagNull: return NULL;
+                case Tags::TagNull: return null;
                 case Tags::TagEmpty: return '';
                 case Tags::TagBytes: return $this->readBytesWithoutTag();
                 case Tags::TagRef: return $this->readRef();
-                default: $this->unexpectedTag($tag);
+                default: throw $this->unexpectedTag($tag);
             }
         }
         public function readUTF8CharWithoutTag(): string {
@@ -377,15 +408,25 @@ namespace Hprose {
             return $s;
         }
 
-        public function readString(): string {
+        private function _readString(): string {
             $tag = $this->stream->getc();
             switch ($tag) {
-                case Tags::TagNull: return NULL;
+                case Tags::TagUTF8Char: return $this->readUTF8CharWithoutTag();
+                case Tags::TagString: return $this->readStringWithoutTag();
+                case Tags::TagRef: return (string)$this->readRef();
+                default: throw $this->unexpectedTag($tag);
+            }
+        }
+
+        public function readString(): mixed {
+            $tag = $this->stream->getc();
+            switch ($tag) {
+                case Tags::TagNull: return null;
                 case Tags::TagEmpty: return '';
                 case Tags::TagUTF8Char: return $this->readUTF8CharWithoutTag();
                 case Tags::TagString: return $this->readStringWithoutTag();
                 case Tags::TagRef: return $this->readRef();
-                default: $this->unexpectedTag($tag);
+                default: throw $this->unexpectedTag($tag);
             }
         }
         public function readGuidWithoutTag(): string {
@@ -395,16 +436,16 @@ namespace Hprose {
             $this->refer->set($s);
             return $s;
         }
-        public function readGuid(): string {
+        public function readGuid(): mixed {
             $tag = $this->stream->getc();
             switch ($tag) {
-                case Tags::TagNull: return NULL;
+                case Tags::TagNull: return null;
                 case Tags::TagGuid: return $this->readGuidWithoutTag();
                 case Tags::TagRef: return $this->readRef();
-                default: $this->unexpectedTag($tag);
+                default: throw $this->unexpectedTag($tag);
             }
         }
-        public function readListWithoutTag(): Vector {
+        public function readListWithoutTag(): Vector<mixed> {
             $list = Vector {};
             $this->refer->set($list);
             $count = (int)$this->stream->readuntil(Tags::TagOpenbrace);
@@ -414,50 +455,62 @@ namespace Hprose {
             $this->stream->skip(1);
             return $list;
         }
-        public function readList(): Vector {
+        public function readList(): mixed {
             $tag = $this->stream->getc();
             switch ($tag) {
-                case Tags::TagNull: return NULL;
+                case Tags::TagNull: return null;
                 case Tags::TagList: return $this->readListWithoutTag();
                 case Tags::TagRef: return $this->readRef();
-                default: $this->unexpectedTag($tag);
+                default: throw $this->unexpectedTag($tag);
             }
         }
-        public function readMapWithoutTag(): Map {
+        public function readMapWithoutTag(): Map<arraykey, mixed> {
             $map = Map {};
             $this->refer->set($map);
             $count = (int)$this->stream->readuntil(Tags::TagOpenbrace);
             for ($i = 0; $i < $count; ++$i) {
-                $key = $this->unserialize();
+                $key = $this->unserialize_key();
                 $map[$key] = $this->unserialize();
             }
             $this->stream->skip(1);
             return $map;
         }
-        public function readMap(): Map {
+        public function readMap(): mixed {
             $tag = $this->stream->getc();
             switch ($tag) {
-                case Tags::TagNull: return NULL;
+                case Tags::TagNull: return null;
                 case Tags::TagMap: return $this->readMapWithoutTag();
                 case Tags::TagRef: return $this->readRef();
-                default: $this->unexpectedTag($tag);
+                default: throw $this->unexpectedTag($tag);
             }
+            return null;
         }
         public function readObjectWithoutTag(): mixed {
-            list($classname, $fields) = $this->classref[(int)$this->stream->readuntil(Tags::TagOpenbrace)];
-            $object = new $classname;
-            $this->refer->set($object);
-            $count = count($fields);
-            $reflector = new \ReflectionClass($object);
-            for ($i = 0; $i < $count; ++$i) {
-                $field = $fields[$i];
-                if ($reflector->hasProperty($field)) {
-                    $property = $reflector->getProperty($field);
-                    $property->setAccessible(true);
-                    $property->setValue($object, $this->unserialize());
+            $index = (int)$this->stream->readuntil(Tags::TagOpenbrace);
+            list($classname, $props) = $this->classref[$index];
+            if ($classname == 'stdClass') {
+                $object = new \stdClass();
+                $this->refer->set($object);
+                foreach ($props as $prop) {
+                    // UNSAFE
+                    $object->$prop = $this->unserialize();
+                }
+            }
+            else {
+                $reflector = new \ReflectionClass($classname);
+                if ($reflector->getConstructor() === null) {
+                    $object = $reflector->newInstanceWithoutConstructor();
                 }
                 else {
-                    $object->$field = $this->unserialize();
+                    $object = $reflector->newInstance();
+                }
+                $this->refer->set($object);
+                foreach ($props as $prop) {
+                    if ($reflector->hasProperty($prop)) {
+                        $property = $reflector->getProperty($prop);
+                        $property->setAccessible(true);
+                        $property->setValue($object, $this->unserialize());
+                    }
                 }
             }
             $this->stream->skip(1);
@@ -466,28 +519,28 @@ namespace Hprose {
         public function readObject(): mixed {
             $tag = $this->stream->getc();
             switch ($tag) {
-                case Tags::TagNull: return NULL;
-                case Tags::TagClass: $this->readclass(); return $this->readObject();
+                case Tags::TagNull: return null;
+                case Tags::TagClass: $this->readClass(); return $this->readObject();
                 case Tags::TagObject: return $this->readObjectWithoutTag();
                 case Tags::TagRef: return $this->readRef();
-                default: $this->unexpectedTag($tag);
+                default: throw $this->unexpectedTag($tag);
             }
         }
         protected function readClass(): void {
             $classname = ClassManager::getClass($this->_readStringWithoutTag());
             $count = (int)$this->stream->readuntil(Tags::TagOpenbrace);
-            $fields = Vector<string> {};
+            $props = Vector {};
             for ($i = 0; $i < $count; ++$i) {
-                $fields->add($this->readString());
+                $props->add($this->_readString());
             }
             $this->stream->skip(1);
-            $this->classref->add(array($classname, $fields));
+            $this->classref->add(tuple($classname, $props));
         }
         protected function readRef(): mixed {
             return $this->refer->read((int)$this->stream->readuntil(Tags::TagSemicolon));
         }
         public function reset(): void {
-            $this->classref = Vector<array<string, Vector<string>>> {};
+            $this->classref->clear();
             $this->refer->reset();
         }
     }

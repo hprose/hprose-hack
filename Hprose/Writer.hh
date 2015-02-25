@@ -14,7 +14,7 @@
  *                                                        *
  * hprose writer class for hack.                          *
  *                                                        *
- * LastModified: Feb 25, 2015                             *
+ * LastModified: Feb 26, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -33,14 +33,12 @@ namespace Hprose {
         public function reset(): void {}
     }
     class RealWriterRefer implements WriterRefer {
-        private Vector<mixed> $ref;
-        private Map<string, int> $sref;
-        private Map<string, int> $bref;
-        private Map<string, int> $oref;
-        private int $refcount;
-        function __construct(): void {
-            $this->reset();
-        }
+        private Vector<mixed> $ref = Vector {};
+        private Map<string, int> $sref = Map {};
+        private Map<string, int> $bref = Map {};
+        private Map<string, int> $oref = Map {};
+        private int $refcount = 0;
+
         private function write_ref(Stream $stream, int $index): bool {
             $stream->write(Tags::TagRef . $index . Tags::TagSemicolon);
             return true;
@@ -74,26 +72,27 @@ namespace Hprose {
             return false;
         }
         public function reset(): void {
-            $this->ref = Vector<mixed> {};
-            $this->sref = Map<string, int> {};
-            $this->bref = Map<string, int> {};
-            $this->oref = Map<string, int> {};
+            $this->ref->clear();
+            $this->sref->clear();
+            $this->bref->clear();
+            $this->oref->clear();
             $this->refcount = 0;
         }
     }
+
     class Writer {
         public Stream $stream;
-        private Map<string, int> $classref;
-        private Vector<array<string>> $fieldsref;
+        private Map<string, int> $classref = Map {};
+        private Vector<array<\ReflectionProperty>> $propsref = Vector {};
         private WriterRefer $refer;
-        function __construct(Stream $stream, bool $simple = false): void {
+        public function __construct(Stream $stream, bool $simple = false) {
             $this->stream = $stream;
-            $this->classref = Map<string, int> {};
-            $this->fieldsref = Vector<Vector<string>> {};
-            $this->refer = $simple ? new FakeWriterRefer() : new RealWriterRefer();
+            $this->refer = $simple ?
+                           new FakeWriterRefer() :
+                           new RealWriterRefer();
         }
         public function serialize(mixed $val): void {
-            if ($val === NULL) {
+            if ($val === null) {
                 $this->writeNull();
             }
             elseif (is_scalar($val)) {
@@ -133,10 +132,10 @@ namespace Hprose {
             }
             elseif (is_array($val)) {
                 if (is_list($val)) {
-                    $this->writeListWithRef($val);
+                    $this->writeArray($val);
                 }
                 else {
-                    $this->writeMapWithRef($val);
+                    $this->writeAssocArray($val);
                 }
             }
             elseif (is_object($val)) {
@@ -146,14 +145,14 @@ namespace Hprose {
                 elseif ($val instanceof \DateTime) {
                     $this->writeDateTimeWithRef($val);
                 }
-                elseif ($val instanceof \ConstMap) {
+                elseif ($val instanceof KeyedTraversable) {
                     $this->writeMapWithRef($val);
                 }
-                elseif ($val instanceof \ConstCollection) {
+                elseif ($val instanceof Traversable) {
                     $this->writeListWithRef($val);
                 }
                 elseif ($val instanceof _Map) {
-                    $this->writeMapWithRef($val->value);
+                    $this->writeAssocArray($val->value);
                 }
                 elseif ($val instanceof \stdClass) {
                     $this->writeStdClassWithRef($val);
@@ -244,7 +243,7 @@ namespace Hprose {
                 $this->writeDateTime($datetime);
             }
         }
-        public function writeList(mixed $list): void {
+        public function writeArray(array<mixed> $list): void {
             $this->refer->set($list);
             $count = count($list);
             $this->stream->write(Tags::TagList);
@@ -257,12 +256,25 @@ namespace Hprose {
             }
             $this->stream->write(Tags::TagClosebrace);
         }
-        public function writeListWithRef(mixed $list): void {
+        public function writeList(Traversable<mixed> $list): void {
+            $this->refer->set($list);
+            $count = count($list);
+            $this->stream->write(Tags::TagList);
+            if ($count > 0) {
+                $this->stream->write((string)$count);
+            }
+            $this->stream->write(Tags::TagOpenbrace);
+            foreach ($list as $e) {
+                $this->serialize($e);
+            }
+            $this->stream->write(Tags::TagClosebrace);
+        }
+        public function writeListWithRef(Traversable<mixed> $list): void {
             if (!$this->refer->write($this->stream, $list)) {
                 $this->writeList($list);
             }
         }
-        public function writeMap(mixed $map): void {
+        public function writeAssocArray(array<arraykey, mixed> $map): void {
             $this->refer->set($map);
             $count = count($map);
             $this->stream->write(Tags::TagMap);
@@ -276,7 +288,21 @@ namespace Hprose {
             }
             $this->stream->write(Tags::TagClosebrace);
         }
-        public function writeMapWithRef(mixed $map): void {
+        public function writeMap(KeyedTraversable<arraykey, mixed> $map): void {
+            $this->refer->set($map);
+            $count = count($map);
+            $this->stream->write(Tags::TagMap);
+            if ($count > 0) {
+                $this->stream->write((string)$count);
+            }
+            $this->stream->write(Tags::TagOpenbrace);
+            foreach ($map as $key => $value) {
+                $this->serialize($key);
+                $this->serialize($value);
+            }
+            $this->stream->write(Tags::TagClosebrace);
+        }
+        public function writeMapWithRef(KeyedTraversable<arraykey, mixed> $map): void {
             if (!$this->refer->write($this->stream, $map)) {
                 $this->writeMap($map);
             }
@@ -304,19 +330,22 @@ namespace Hprose {
         public function writeObject(mixed $obj): void {
             $class = get_class($obj);
             $alias = ClassManager::getClassAlias($class);
-            $vars = (array)$obj;
             if ($this->classref->contains($alias)) {
                 $index = $this->classref[$alias];
             }
             else {
-                $index = $this->writeClass($alias, array_keys($vars));
+                $reflector = new \ReflectionClass($obj);
+                $props = $reflector->getProperties(
+                    \ReflectionProperty::IS_PUBLIC |
+                    \ReflectionProperty::IS_PROTECTED |
+                    \ReflectionProperty::IS_PRIVATE);
+                $index = $this->writeClass($alias, $props);
             }
             $this->refer->set($obj);
-            $fields = $this->fieldsref[$index];
-            $count = count($fields);
+            $props = $this->propsref[$index];
             $this->stream->write(Tags::TagObject . $index . Tags::TagOpenbrace);
-            for ($i = 0; $i < $count; ++$i) {
-                $this->serialize($vars[$fields[$i]]);
+            foreach ($props as $prop) {
+                $this->serialize($prop->getValue($obj));
             }
             $this->stream->write(Tags::TagClosebrace);
         }
@@ -325,30 +354,28 @@ namespace Hprose {
                 $this->writeObject($obj);
             }
         }
-        protected function writeClass(string $alias, array<string> $fields): void {
+        protected function writeClass(string $alias, array<\ReflectionProperty> $props): int {
             $len = ustrlen($alias);
             $this->stream->write(Tags::TagClass . $len .
                                  Tags::TagQuote . $alias . Tags::TagQuote);
-            $count = count($fields);
+            $count = count($props);
             if ($count > 0) {
                 $this->stream->write((string)$count);
             }
             $this->stream->write(Tags::TagOpenbrace);
-            foreach ($fields as $field) {
-                if ($field{0} === "\0") {
-                    $field = substr($field, strpos($field, "\0", 1) + 1);
-                }
-                $this->writeString($field);
+            foreach ($props as $prop) {
+                $prop->setAccessible(true);
+                $this->writeString($prop->getName());
             }
             $this->stream->write(Tags::TagClosebrace);
-            $index = count($this->fieldsref);
+            $index = count($this->propsref);
             $this->classref[$alias] = $index;
-            $this->fieldsref->add($fields);
+            $this->propsref->add($props);
             return $index;
         }
-        public function reset() {
-            $this->classref = Map<string, int> {};
-            $this->fieldsref = Vector<array<string>> {};
+        public function reset(): void {
+            $this->classref->clear();
+            $this->propsref->clear();
             $this->refer->reset();
         }
     }

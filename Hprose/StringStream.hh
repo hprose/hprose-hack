@@ -14,7 +14,7 @@
  *                                                        *
  * hprose string stream library for hack.                 *
  *                                                        *
- * LastModified: Feb 25, 2015                             *
+ * LastModified: Feb 26, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -22,16 +22,11 @@
 namespace Hprose {
     class StringStream implements Stream {
         protected string $buffer;
-        protected int $pos;
-        protected int $mark;
         protected int $length;
-        public function __construct(string $string = ''): void {
-            $this->init($string);
-        }
-        public function init(string $string): void {
+        protected int $pos = 0;
+        protected int $mark = -1;
+        public function __construct(string $string = '') {
             $this->buffer = $string;
-            $this->pos = 0;
-            $this->mark = -1;
             $this->length = strlen($string);
         }
         public function close(): void {
@@ -44,7 +39,7 @@ namespace Hprose {
             return $this->length;
         }
         public function getc(): string {
-            return $this->buffer{$this->pos++};
+            return $this->buffer[$this->pos++];
         }
         public function read(int $length): string {
             $s = substr($this->buffer, $this->pos, $length);
@@ -67,21 +62,6 @@ namespace Hprose {
                 $this->pos = $this->length;
             }
             return $s;
-        }
-        public function seek(int $offset, int $whence = SEEK_SET): bool {
-            switch ($whence) {
-                case SEEK_SET:
-                    $this->pos = $offset;
-                    break;
-                case SEEK_CUR:
-                    $this->pos += $offset;
-                    break;
-                case SEEK_END:
-                    $this->pos = $this->length + $offset;
-                    break;
-            }
-            $this->mark = -1;
-            return true;
         }
         public function mark(): void {
             $this->mark = $this->pos;
@@ -106,7 +86,7 @@ namespace Hprose {
                 $length = strlen($str);
             }
             else {
-                $this->buffer .= substr($string, 0, $length);
+                $this->buffer .= substr($str, 0, $length);
             }
             $this->length += $length;
         }

@@ -14,7 +14,7 @@
  *                                                        *
  * hprose client library for hack.                        *
  *                                                        *
- * LastModified: Feb 24, 2015                             *
+ * LastModified: Feb 25, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -23,11 +23,11 @@ namespace Hprose {
     class Proxy {
         private Client $client;
         private string $namespace;
-        public function __construct(Client $client, string $namespace = ''): void {
+        public function __construct(Client $client, string $namespace = '') {
             $this->client = $client;
             $this->namespace = $namespace;
         }
-        public function __call(string $name, array $arguments): mixed {
+        public function __call(string $name, array<mixed> $arguments): mixed {
             $name = $this->namespace . $name;
             return $this->client->invoke($name, new Vector($arguments));
         }
@@ -41,9 +41,9 @@ namespace Hprose {
         private Vector<Filter> $filters;
         private bool $simple;
         protected abstract function sendAndReceive(string $request): string;
-        public function __construct(string $url = ''): void {
-            $this->useService($url);
-            $this->filters = Vector<Filter> {};
+        public function __construct(string $url = '') {
+            $this->url = $url;
+            $this->filters = Vector {};
             $this->simple = false;
         }
         public function useService(string $url = '', string $namespace = ''): mixed {
@@ -55,8 +55,8 @@ namespace Hprose {
             }
             return new Proxy($this, $namespace);
         }
-        public function invoke(string $name, Vector<mixed> $arguments = Vector {}, bool $byRef = false, ResultMode $resultMode = ResultMode::Normal, ?bool $simple = NULL): mixed {
-            if ($simple === NULL) {
+        public function invoke(string $name, Vector<mixed> $arguments = Vector {}, bool $byRef = false, ResultMode $resultMode = ResultMode::Normal, ?bool $simple = null): mixed {
+            if ($simple === null) {
                 $simple = $this->simple;
             }
             $stream = new StringStream(Tags::TagCall);
@@ -95,7 +95,7 @@ namespace Hprose {
             $stream = new StringStream($response);
             //$hproseReader = new Reader($stream);
             $hproseReader = new RawReader($stream);
-            $result = NULL;
+            $result = null;
             while (($tag = $stream->getc()) !== Tags::TagEnd) {
                 switch ($tag) {
                     case Tags::TagResult:
@@ -112,14 +112,16 @@ namespace Hprose {
                         //$hproseReader->reset();
                         //$args = $hproseReader->readList();
                         $args = \hprose_unserialize_with_stream($stream);
-                        for ($i = 0, $n = count($arguments); $i < $n; $i++) {
-                            $arguments[$i] = $args[$i];
+                        if ($args instanceof Vector) {
+                            for ($i = 0, $n = count($arguments); $i < $n; $i++) {
+                                $arguments[$i] = $args[$i];
+                            }
                         }
                         break;
                     case Tags::TagError:
                         //$hproseReader->reset();
                         //throw new \Exception($hproseReader->unserialize());
-                        throw new \Exception(\hprose_unserialize_with_stream($stream));
+                        throw new \Exception(\hprose_unserialize_string_with_stream($stream));
                         break;
                     default:
                         throw new \Exception("Wrong Response: \r\n" . $response);
@@ -128,22 +130,22 @@ namespace Hprose {
             }
             return $result;
         }
-        public function getFilter(): Filter {
+        public function getFilter(): ?Filter {
             if (count($this->filters) === 0) {
-                return NULL;
+                return null;
             }
             return $this->filters[0];
         }
         public function setFilter(Filter $filter): void {
             $this->filters->clear();
-            if ($filter !== NULL) {
+            if ($filter !== null) {
                 $this->filters->add($filter);
             }
         }
         public function addFilter(Filter $filter): void {
             $this->filters->add($filter);
         }
-        public function removeFilter($filter): bool {
+        public function removeFilter(Filter $filter): bool {
             $i = $this->filters->linearSearch($filter);
             if ($i === -1) {
                 return false;
@@ -157,7 +159,7 @@ namespace Hprose {
         public function setSimpleMode(bool $simple = true): void {
             $this->simple = $simple;
         }
-        public function __call(string $name, array $arguments): mixed {
+        public function __call(string $name, array<mixed> $arguments): mixed {
             return $this->invoke($name, new Vector($arguments));
         }
         public function __get(string $name): mixed {

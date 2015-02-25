@@ -14,30 +14,27 @@
  *                                                        *
  * hprose raw reader class for hack.                      *
  *                                                        *
- * LastModified: Feb 25, 2015                             *
+ * LastModified: Feb 26, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace Hprose {
     class RawReader {
-        public Stream $stream;
-        function __construct(Stream $stream): void {
-            $this->stream = $stream;
-        }
-        public function unexpectedTag(string $tag, string $expectTags = ''): void {
+        public function __construct(public Stream $stream) {}
+        public function unexpectedTag(string $tag, string $expectTags = ''): \Exception {
             if ($tag && $expectTags) {
-                throw new \Exception("Tag '" . $expectTags . "' expected, but '" . $tag . "' found in stream");
+                return new \Exception("Tag '" . $expectTags . "' expected, but '" . $tag . "' found in stream");
             }
             else if ($tag) {
-                throw new \Exception("Unexpected serialize tag '" . $tag . "' in stream");
+                return new \Exception("Unexpected serialize tag '" . $tag . "' in stream");
             }
             else {
-                throw new \Exception('No byte found in stream');
+                return new \Exception('No byte found in stream');
             }
         }
-        public function readRaw(Stream $ostream = NULL, string $tag = ''): Stream {
-            if ($ostream === NULL) {
+        public function readRaw(?Stream $ostream = null, string $tag = ''): Stream {
+            if ($ostream === null) {
                 $ostream = new StringStream();
             }
             if ($tag == '') {
@@ -98,7 +95,7 @@ namespace Hprose {
                 case Tags::TagError:
                     $this->readRaw($ostream);
                     break;
-                default: $this->unexpectedTag($tag);
+                default: throw $this->unexpectedTag($tag);
             }
             return $ostream;
         }

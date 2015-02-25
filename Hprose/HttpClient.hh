@@ -14,24 +14,25 @@
  *                                                        *
  * hprose http client library for hack.                   *
  *                                                        *
- * LastModified: Feb 24, 2015                             *
+ * LastModified: Feb 25, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace Hprose {
     class HttpClient extends Client {
-        private static array $cookieManager = array();
-        private string $host;
-        private string $path;
-        private bool $secure;
-        private string $proxy;
-        private array $header;
-        private int $timeout;
-        private bool $keepAlive;
-        private int $keepAliveTimeout;
+        private static Map<string, Map<string, Map<string, string>>> $cookieManager = Map {};
+        private string $host = '';
+        private string $path = '';
+        private bool $secure = false;
+        private string $proxy = '';
+        private int $timeout = 30000;
+        private bool $keepAlive = true;
+        private int $keepAliveTimeout = 300;
+        private Map<string, string> $header;
         private resource $curl;
         public static function keepSession(): void {
+            // UNSAFE
             if (array_key_exists('HPROSE_COOKIE_MANAGER', $_SESSION)) {
                 self::$cookieManager = $_SESSION['HPROSE_COOKIE_MANAGER'];
             }
@@ -39,13 +40,13 @@ namespace Hprose {
                 $_SESSION['HPROSE_COOKIE_MANAGER'] = self::$cookieManager;
             });
         }
-        private function setCookie(array $headers): void {
+        private function setCookie(array<string> $headers): void {
             foreach ($headers as $header) {
                 @list($name, $value) = explode(':', $header, 2);
                 if (strtolower($name) == 'set-cookie' ||
                     strtolower($name) == 'set-cookie2') {
                     $cookies = explode(';', trim($value));
-                    $cookie = array();
+                    $cookie = Map {};
                     $pair = explode('=', trim($cookies[0]), 2);
                     $cookie['name'] = $pair[0];
                     if (count($pair) > 1) $cookie['value'] = $pair[1];
@@ -60,18 +61,14 @@ namespace Hprose {
                     else {
                         $cookie['PATH'] = '/';
                     }
-                    if (array_key_exists('EXPIRES', $cookie)) {
-                        $cookie['EXPIRES'] = strtotime($cookie['EXPIRES']);
-                    }
                     if (array_key_exists('DOMAIN', $cookie)) {
                         $cookie['DOMAIN'] = strtolower($cookie['DOMAIN']);
                     }
                     else {
                         $cookie['DOMAIN'] = $this->host;
                     }
-                    $cookie['SECURE'] = array_key_exists('SECURE', $cookie);
                     if (!array_key_exists($cookie['DOMAIN'], self::$cookieManager)) {
-                        self::$cookieManager[$cookie['DOMAIN']] = array();
+                        self::$cookieManager[$cookie['DOMAIN']] = Map {};
                     }
                     self::$cookieManager[$cookie['DOMAIN']][$cookie['name']] = $cookie;
                 }
@@ -83,18 +80,20 @@ namespace Hprose {
                 if (strpos($this->host, $domain) !== false) {
                     $names = array();
                     foreach ($cookieList as $cookie) {
-                        if (array_key_exists('EXPIRES', $cookie) && (time() > $cookie['EXPIRES'])) {
+                        if (array_key_exists('EXPIRES', $cookie) && (time() > strtotime($cookie['EXPIRES']))) {
                             $names[] = $cookie['name'];
                         }
                         elseif (strpos($this->path, $cookie['PATH']) === 0) {
-                            if ((($this->secure && $cookie['SECURE']) ||
-                                 !$cookie['SECURE']) && isset($cookie['value'])) {
+                            if ((($this->secure &&
+                                 array_key_exists('SECURE', $cookie)) ||
+                                 !array_key_exists('SECURE', $cookie)) &&
+                                  array_key_exists('value', $cookie)) {
                                 $cookies[] = $cookie['name'] . '=' . $cookie['value'];
                             }
                         }
                     }
                     foreach ($names as $name) {
-                        unset(self::$cookieManager[$domain][$name]);
+                        self::$cookieManager[$domain]->remove($name);
                     }
                 }
             }
@@ -103,37 +102,40 @@ namespace Hprose {
             }
             return '';
         }
-        <<__Override, Override>>
-        public function __construct(string $url = ''): void {
-            parent::__construct($url);
-            $this->header = array('Content-type' => 'application/hprose');
-            $this->curl = curl_init();
-        }
-        <<__Override, Override>>
-        public function useService(string $url = '', string $namespace = ''): mixed {
-            $serviceProxy = parent::useService($url, $namespace);
+        private function init_url(string $url): void {
             if ($url) {
                 $url = parse_url($url);
                 $this->secure = (strtolower($url['scheme']) == 'https');
                 $this->host = strtolower($url['host']);
-                $this->path = isset($url['path']) ? $url['path'] : "/";
+                $this->path = array_key_exists('path', $url) ? $url['path'] : "/";
                 $this->timeout = 30000;
                 $this->keepAlive = true;
                 $this->keepAliveTimeout = 300;
             }
-            return $serviceProxy;
+        }
+        <<__Override, Override>>
+        public function __construct(string $url = '') {
+            parent::__construct($url);
+            $this->init_url($url);
+            $this->header = Map {'Content-type' => 'application/hprose'};
+            $this->curl = curl_init();
+        }
+        <<__Override, Override>>
+        public function useService(string $url = '', string $namespace = ''): mixed {
+            $this->init_url($url);
+            return parent::useService($url, $namespace);
         }
         <<__Override, Override>>
         protected function sendAndReceive(string $request): string {
             curl_setopt($this->curl, CURLOPT_URL, $this->url);
-            curl_setopt($this->curl, CURLOPT_HEADER, TRUE);
-            curl_setopt($this->curl, CURLOPT_SSL_VERIFYPEER, FALSE);
-            curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, TRUE);
-            curl_setopt($this->curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+            curl_setopt($this->curl, CURLOPT_HEADER, true);
+            curl_setopt($this->curl, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, true);
+            //curl_setopt($this->curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
             if (!ini_get('safe_mode')) {
-                curl_setopt($this->curl, CURLOPT_FOLLOWLOCATION, TRUE);
+                curl_setopt($this->curl, CURLOPT_FOLLOWLOCATION, true);
             }
-            curl_setopt($this->curl, CURLOPT_POST, TRUE);
+            curl_setopt($this->curl, CURLOPT_POST, true);
             curl_setopt($this->curl, CURLOPT_POSTFIELDS, $request);
             $headers_array = array($this->getCookie(),
                                     "Content-Length: " . strlen($request));
@@ -166,6 +168,7 @@ namespace Hprose {
                 list($response_headers, $response) = explode("\r\n\r\n", $response, 2);
                 $http_response_header = explode("\r\n", $response_headers);
                 $http_response_firstline = array_shift($http_response_header);
+                $matches = array();
                 if (preg_match('@^HTTP/[0-9]\.[0-9]\s([0-9]{3})\s(.*)@',
                                $http_response_firstline, $matches)) {
                     $response_code = $matches[1];
@@ -191,7 +194,7 @@ namespace Hprose {
                     $this->header[$name] = $value;
                 }
                 else {
-                    unset($this->header[$name]);
+                    $this->header->remove($name);
                 }
             }
         }
