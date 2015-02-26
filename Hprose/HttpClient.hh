@@ -14,7 +14,7 @@
  *                                                        *
  * hprose http client library for hack.                   *
  *                                                        *
- * LastModified: Feb 25, 2015                             *
+ * LastModified: Feb 27, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -113,25 +113,22 @@ namespace Hprose {
                 $this->keepAliveTimeout = 300;
             }
         }
-        <<__Override, Override>>
         public function __construct(string $url = '') {
             parent::__construct($url);
             $this->init_url($url);
             $this->header = Map {'Content-type' => 'application/hprose'};
             $this->curl = curl_init();
         }
-        <<__Override, Override>>
         public function useService(string $url = '', string $namespace = ''): mixed {
             $this->init_url($url);
             return parent::useService($url, $namespace);
         }
-        <<__Override, Override>>
         protected function sendAndReceive(string $request): string {
             curl_setopt($this->curl, CURLOPT_URL, $this->url);
             curl_setopt($this->curl, CURLOPT_HEADER, true);
             curl_setopt($this->curl, CURLOPT_SSL_VERIFYPEER, false);
             curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, true);
-            //curl_setopt($this->curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+            curl_setopt($this->curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
             if (!ini_get('safe_mode')) {
                 curl_setopt($this->curl, CURLOPT_FOLLOWLOCATION, true);
             }
@@ -153,7 +150,7 @@ namespace Hprose {
             if ($this->proxy) {
                 curl_setopt($this->curl, CURLOPT_PROXY, $this->proxy);
             }
-            if (defined(CURLOPT_TIMEOUT_MS)) {
+            if (defined('CURLOPT_TIMEOUT_MS')) {
                 curl_setopt($this->curl, CURLOPT_TIMEOUT_MS, $this->timeout);
             }
             else {

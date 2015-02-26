@@ -14,7 +14,7 @@
  *                                                        *
  * hprose http service library for hack.                  *
  *                                                        *
- * LastModified: Feb 25, 2015                             *
+ * LastModified: Feb 27, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -78,7 +78,6 @@ namespace Hprose {
         public function removeAccessControlAllowOrigin(string $origin): void {
             $this->origins->remove($origin);
         }
-        <<__Override, Override>>
         public function handle(): void {
             $request = file_get_contents("php://input");
 
