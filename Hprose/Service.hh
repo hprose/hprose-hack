@@ -14,7 +14,7 @@
  *                                                        *
  * hprose service library for hack.                       *
  *                                                        *
- * LastModified: Feb 26, 2015                             *
+ * LastModified: Feb 27, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -57,7 +57,7 @@ namespace Hprose {
             E_USER_NOTICE => 'User Notice',
             E_USER_DEPRECATED => 'User Deprecated',
             E_STRICT => 'Runtime Notice',
-            //E_RECOVERABLE_ERROR  => 'Catchable Fatal Error'
+            E_RECOVERABLE_ERROR  => 'Catchable Fatal Error'
         };
         private Map<string, RemoteCall> $calls = Map {};
         private Vector<string> $names = Vector {};
