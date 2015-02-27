@@ -448,66 +448,75 @@ namespace {
     }
 
     function hprose_unserialize_with_stream(Hprose\Stream $s, bool $simple = false): mixed {
-        $o = new stdClass();
-        $s->mark();
-        $o->s = $s->readfull();
-        $o->p = 0;
-        $o->cr = Vector {};
-        if ($simple) {
-            $v = Hprose\simple_unserialize($o);
+        if ($s instanceof Hprose\StringStream) {
+            $o = new stdClass();
+            $s->mark();
+            $o->s = $s->readfull();
+            $o->p = 0;
+            $o->cr = Vector {};
+            if ($simple) {
+                $v = Hprose\simple_unserialize($o);
+            }
+            else {
+                $o->r = Vector {};
+                $v = Hprose\fast_unserialize($o);
+            }
+            $s->reset();
+            $s->skip($o->p);
+            return $v;
         }
         else {
-            $o->r = Vector {};
-            $v = Hprose\fast_unserialize($o);
+            $reader = new Hprose\Reader($s, $simple);
+            return $reader->unserialize();
         }
-        $s->reset();
-        $s->skip($o->p);
-        return $v;
     }
 
     function hprose_unserialize_string_with_stream(Hprose\Stream $s, bool $simple = false): string {
-        $o = new stdClass();
-        $s->mark();
-        $o->s = $s->readfull();
-        $o->p = 0;
-        if ($simple) {
-            $v = Hprose\simple_unserialize_string($o);
+        if ($s instanceof Hprose\StringStream) {
+            $o = new stdClass();
+            $s->mark();
+            $o->s = $s->readfull();
+            $o->p = 0;
+            if ($simple) {
+                $v = Hprose\simple_unserialize_string($o);
+            }
+            else {
+                $o->r = Vector {};
+                $v = Hprose\fast_unserialize_string($o);
+            }
+            $s->reset();
+            $s->skip($o->p);
+            return $v;
         }
         else {
-            $o->r = Vector {};
-            $v = Hprose\fast_unserialize_string($o);
+            $reader = new Hprose\Reader($s, $simple);
+            return $reader->_readString();
         }
-        $s->reset();
-        $s->skip($o->p);
-        return $v;
     }
 
     function hprose_unserialize_list_with_stream(Hprose\Stream $s): Vector<mixed> {
-        $o = new stdClass();
-        $s->mark();
-        $o->s = $s->readfull();
-        $o->p = 0;
-        $o->cr = Vector {};
-        $o->r = Vector {};
-        $v = Hprose\fast_read_list($o);
-        $s->reset();
-        $s->skip($o->p);
-        return $v;
+        if ($s instanceof Hprose\StringStream) {
+            $o = new stdClass();
+            $s->mark();
+            $o->s = $s->readfull();
+            $o->p = 0;
+            $o->cr = Vector {};
+            $o->r = Vector {};
+            $v = Hprose\fast_read_list($o);
+            $s->reset();
+            $s->skip($o->p);
+            return $v;
+        }
+        else {
+            $reader = new Hprose\Reader($s);
+            return $reader->readListWithoutTag();
+        }
     }
 
 /*
     function hprose_unserialize(string $s, bool $simple = false): mixed {
         $reader = new Hprose\Reader(new Hprose\StringStream($s), $simple);
         return $reader->unserialize();
-    }
-    function hprose_unserialize_with_stream(StringStream $s, bool $simple = false): mixed {
-        $reader = new Hprose\Reader($s, $simple);
-        return $reader->unserialize();
-    }
-
-    function hprose_unserialize_list_with_stream(StringStream $s): Vector {
-        $reader = new Hprose\Reader($s);
-        return $reader->readList();
     }
 */
 

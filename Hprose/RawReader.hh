@@ -33,10 +33,13 @@ namespace Hprose {
                 return new \Exception('No byte found in stream');
             }
         }
-        public function readRaw(?Stream $ostream = null, string $tag = ''): Stream {
-            if ($ostream === null) {
-                $ostream = new StringStream();
-            }
+        public function readRaw(): StringStream {
+            $ostream = new StringStream();
+            $this->__readRaw($ostream);
+            return $ostream;
+        }
+
+        private function __readRaw(Stream $ostream, string $tag = ''): void {
             if ($tag == '') {
                 $tag = $this->stream->getc();
             }
@@ -90,14 +93,13 @@ namespace Hprose {
                     break;
                 case Tags::TagClass:
                     $this->readComplexRaw($ostream);
-                    $this->readRaw($ostream);
+                    $this->__readRaw($ostream);
                     break;
                 case Tags::TagError:
-                    $this->readRaw($ostream);
+                    $this->__readRaw($ostream);
                     break;
                 default: throw $this->unexpectedTag($tag);
             }
-            return $ostream;
         }
 
         private function readNumberRaw(Stream $ostream): void {
@@ -200,7 +202,7 @@ namespace Hprose {
                  Tags::TagOpenbrace;
             $ostream->write($s);
             while (($tag = $this->stream->getc()) != Tags::TagClosebrace) {
-                $this->readRaw($ostream, $tag);
+                $this->__readRaw($ostream, $tag);
             }
             $ostream->write($tag);
         }

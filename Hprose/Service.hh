@@ -97,7 +97,7 @@ namespace Hprose {
                     Tags::TagEnd;
             return $this->outputFilter($data, $context);
         }
-        protected function doInvoke(Stream $input,
+        protected function doInvoke(StringStream $input,
                                     \stdClass $context): string {
             $output = new StringStream();
             do {

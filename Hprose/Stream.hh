@@ -25,7 +25,6 @@ namespace Hprose {
         public function length(): int;
         public function getc(): string;
         public function read(int $length): string;
-        public function readfull(): string;
         public function readuntil(string $tag): string;
         public function mark(): void;
         public function unmark(): void;
@@ -33,6 +32,5 @@ namespace Hprose {
         public function skip(int $n): void;
         public function eof(): bool;
         public function write(string $str, int $length = -1): void;
-        public function toString(): string;
     }
 }

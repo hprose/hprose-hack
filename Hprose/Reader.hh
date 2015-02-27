@@ -408,7 +408,7 @@ namespace Hprose {
             return $s;
         }
 
-        private function _readString(): string {
+        public function _readString(): string {
             $tag = $this->stream->getc();
             switch ($tag) {
                 case Tags::TagUTF8Char: return $this->readUTF8CharWithoutTag();
