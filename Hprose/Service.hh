@@ -14,7 +14,7 @@
  *                                                        *
  * hprose service library for hack.                       *
  *                                                        *
- * LastModified: Feb 27, 2015                             *
+ * LastModified: Mar 6, 2015                              *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -97,9 +97,9 @@ namespace Hprose {
                     Tags::TagEnd;
             return $this->outputFilter($data, $context);
         }
-        protected function doInvoke(StringStream $input,
+        protected function doInvoke(BytesIO $input,
                                     \stdClass $context): string {
-            $output = new StringStream();
+            $output = new BytesIO();
             do {
                 $name = hprose_unserialize_string_with_stream($input, true);
                 $alias = strtolower($name);
@@ -427,7 +427,7 @@ namespace Hprose {
         }
         public function defaultHandle(string $request,
                                       \stdClass $context): string {
-            $input = new StringStream($this->inputFilter($request, $context));
+            $input = new BytesIO($this->inputFilter($request, $context));
             try {
                 switch ($input->getc()) {
                     case Tags::TagCall:

@@ -14,14 +14,29 @@
  *                                                        *
  * hprose serialize library for hack.                     *
  *                                                        *
- * LastModified: Feb 25, 2015                             *
+ * LastModified: Mar 6, 2015                              *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace Hprose {
     // private functions
+    function is_utf8(string $s): bool {
+        return iconv('UTF-8', 'UTF-8//IGNORE', $s) === $s;
+    }
 
+    function ustrlen(string $s): int {
+        return strlen(iconv('UTF-8', 'UTF-16LE', $s)) >> 1;
+    }
+
+    function is_list(array<arraykey, mixed> $a): bool {
+        $count = count($a);
+        // UNSAFE
+        return ($count === 0) ||
+               ($count === 1 && (isset($a[0]) || array_key_exists(0, $a))) ||
+               ((isset($a[$count - 1]) || array_key_exists($count - 1, $a)) &&
+                (isset($a[0]) || array_key_exists(0, $a)));
+    }
     function simple_serialize(mixed $v, \stdClass $ro): string {
         if ($v === null) {
             return 'n';
@@ -89,26 +104,7 @@ namespace Hprose {
             return $s . '}';
         }
         elseif (is_object($v)) {
-            if ($v instanceof _Bytes) {
-                $c = strlen($v->value);
-                if ($c == 0) {
-                    return 'b""';
-                }
-                return 'b' . $c . '"' . $v->value . '"';
-            }
-            elseif ($v instanceof _Map) {
-                $c = count($v->value);
-                if ($c == 0) {
-                    return 'm{}';
-                }
-                $s = 'm' . $c . '{';
-                foreach ($v->value as $key => $val) {
-                    $s .= simple_serialize($key, $ro) .
-                          simple_serialize($val, $ro);
-                }
-                return $s . '}';
-            }
-            elseif ($v instanceof \DateTime) {
+            if ($v instanceof \DateTime) {
                 if ($v->getOffset() == 0) {
                     return $v->format("\\DYmd\\THis.u\\Z");
                 }
@@ -272,121 +268,96 @@ namespace Hprose {
             return $s . '}';
         }
         if (is_object($v)) {
-            if ($v instanceof _Bytes) {
-                $v = $v->value;
-                if ($ro->br->contains($v)) {
-                    return 'r' . $ro->br[$v] . ';';
-                }
-                else {
-                    $ro->br[$v] = $ro->count++;
-                    return 'b' . strlen($v) . '"' . $v . '"';
-                }
+            $h = spl_object_hash($v);
+            if ($ro->or->contains($h)) {
+                return 'r' . $ro->or[$h] . ';';
             }
-            elseif ($v instanceof _Map) {
-                $ro->count++;
-                $c = count($v->value);
+            $ro->r->add($v);
+            if ($v instanceof \DateTime) {
+                $ro->or[$h] = $ro->count++;
+                if ($v->getOffset() == 0) {
+                    return $v->format("\\DYmd\\THis.u\\Z");
+                }
+                return $v->format("\\DYmd\\THis.u;");
+            }
+            elseif ($v instanceof \stdClass) {
+                $ro->or[$h] = $ro->count++;
+                $v = get_object_vars($v);
+                $c = count($v);
                 if ($c == 0) {
-                    return 'm{}';
+                    return 'a{}';
                 }
                 $s = 'm' . $c . '{';
-                foreach ($v->value as $key => $val) {
+                foreach ($v as $key => $val) {
                     $s .= fast_serialize($key, $ro) .
                           fast_serialize($val, $ro);
                 }
                 return $s . '}';
             }
+            elseif ($v instanceof KeyedTraversable) {
+                $ro->or[$h] = $ro->count++;
+                $c = count($v);
+                if ($c == 0) {
+                    return 'm{}';
+                }
+                $s = 'm' . $c . '{';
+                foreach ($v as $key => $val) {
+                    $s .= fast_serialize($key, $ro) .
+                          fast_serialize($val, $ro);
+                }
+                return $s . '}';
+            }
+            elseif ($v instanceof Traversable) {
+                $ro->or[$h] = $ro->count++;
+                $c = count($v);
+                if ($c == 0) {
+                    return 'a{}';
+                }
+                $s = 'a' . $c . '{';
+                foreach ($v as $val) {
+                    $s .= fast_serialize($val, $ro);
+                }
+                return $s . '}';
+            }
             else {
-                $h = spl_object_hash($v);
-                if ($ro->or->contains($h)) {
-                    return 'r' . $ro->or[$h] . ';';
-                }
-                $ro->r->add($v);
-                if ($v instanceof \DateTime) {
-                    $ro->or[$h] = $ro->count++;
-                    if ($v->getOffset() == 0) {
-                        return $v->format("\\DYmd\\THis.u\\Z");
-                    }
-                    return $v->format("\\DYmd\\THis.u;");
-                }
-                elseif ($v instanceof \stdClass) {
-                    $ro->or[$h] = $ro->count++;
-                    $v = get_object_vars($v);
-                    $c = count($v);
-                    if ($c == 0) {
-                        return 'a{}';
-                    }
-                    $s = 'm' . $c . '{';
-                    foreach ($v as $key => $val) {
-                        $s .= fast_serialize($key, $ro) .
-                              fast_serialize($val, $ro);
-                    }
-                    return $s . '}';
-                }
-                elseif ($v instanceof KeyedTraversable) {
-                    $ro->or[$h] = $ro->count++;
-                    $c = count($v);
-                    if ($c == 0) {
-                        return 'm{}';
-                    }
-                    $s = 'm' . $c . '{';
-                    foreach ($v as $key => $val) {
-                        $s .= fast_serialize($key, $ro) .
-                              fast_serialize($val, $ro);
-                    }
-                    return $s . '}';
-                }
-                elseif ($v instanceof Traversable) {
-                    $ro->or[$h] = $ro->count++;
-                    $c = count($v);
-                    if ($c == 0) {
-                        return 'a{}';
-                    }
-                    $s = 'a' . $c . '{';
-                    foreach ($v as $val) {
-                        $s .= fast_serialize($val, $ro);
-                    }
-                    return $s . '}';
+                $class = get_class($v);
+                $alias = ClassManager::getClassAlias($class);
+                if ($ro->cr->contains($alias)) {
+                    $index = $ro->cr[$alias];
+                    $props = $ro->pr[$index];
+                    $s = '';
                 }
                 else {
-                    $class = get_class($v);
-                    $alias = ClassManager::getClassAlias($class);
-                    if ($ro->cr->contains($alias)) {
-                        $index = $ro->cr[$alias];
-                        $props = $ro->pr[$index];
-                        $s = '';
+                    $s = 'c' . ustrlen($alias) . '"' . $alias . '"';
+                    $reflector = new \ReflectionClass($v);
+                    $props = $reflector->getProperties(
+                        \ReflectionProperty::IS_PUBLIC |
+                        \ReflectionProperty::IS_PROTECTED |
+                        \ReflectionProperty::IS_PRIVATE);
+                    $c = count($props);
+                    if ($c > 0) {
+                        $s .= $c . '{';
+                        foreach ($props as $prop) {
+                            $prop->setAccessible(true);
+                            $name = $prop->getName();
+                            $ro->sr[$name] = $ro->count++;
+                            $s .= 's' . ustrlen($name) . '"' . $name . '"';
+                        }
+                        $s .= '}';
                     }
                     else {
-                        $s = 'c' . ustrlen($alias) . '"' . $alias . '"';
-                        $reflector = new \ReflectionClass($v);
-                        $props = $reflector->getProperties(
-                            \ReflectionProperty::IS_PUBLIC |
-                            \ReflectionProperty::IS_PROTECTED |
-                            \ReflectionProperty::IS_PRIVATE);
-                        $c = count($props);
-                        if ($c > 0) {
-                            $s .= $c . '{';
-                            foreach ($props as $prop) {
-                                $prop->setAccessible(true);
-                                $name = $prop->getName();
-                                $ro->sr[$name] = $ro->count++;
-                                $s .= 's' . ustrlen($name) . '"' . $name . '"';
-                            }
-                            $s .= '}';
-                        }
-                        else {
-                            $s .= '{}';
-                        }
-                        $index = count($ro->pr);
-                        $ro->cr[$alias] = $index;
-                        $ro->pr->add($props);
+                        $s .= '{}';
                     }
-                    $ro->or[$h] = $ro->count++;
-                    $s .= 'o' . $index . '{';
-                    foreach ($props as $prop) {
-                        $s .= fast_serialize($prop->getValue($v), $ro);
-                    }
-                    return $s . '}';
+                    $index = count($ro->pr);
+                    $ro->cr[$alias] = $index;
+                    $ro->pr->add($props);
                 }
+                $ro->or[$h] = $ro->count++;
+                $s .= 'o' . $index . '{';
+                foreach ($props as $prop) {
+                    $s .= fast_serialize($prop->getValue($v), $ro);
+                }
+                return $s . '}';
             }
         }
         throw new \Exception('Not support to serialize this data');

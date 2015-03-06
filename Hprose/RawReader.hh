@@ -14,14 +14,14 @@
  *                                                        *
  * hprose raw reader class for hack.                      *
  *                                                        *
- * LastModified: Feb 26, 2015                             *
+ * LastModified: Mar 6, 2015                              *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace Hprose {
     class RawReader {
-        public function __construct(public Stream $stream) {}
+        public function __construct(public BytesIO $stream) {}
         public function unexpectedTag(string $tag, string $expectTags = ''): \Exception {
             if ($tag && $expectTags) {
                 return new \Exception("Tag '" . $expectTags . "' expected, but '" . $tag . "' found in stream");
@@ -33,13 +33,13 @@ namespace Hprose {
                 return new \Exception('No byte found in stream');
             }
         }
-        public function readRaw(): StringStream {
-            $ostream = new StringStream();
+        public function readRaw(): BytesIO {
+            $ostream = new BytesIO();
             $this->__readRaw($ostream);
             return $ostream;
         }
 
-        private function __readRaw(Stream $ostream, string $tag = ''): void {
+        private function __readRaw(BytesIO $ostream, string $tag = ''): void {
             if ($tag == '') {
                 $tag = $this->stream->getc();
             }
@@ -102,13 +102,13 @@ namespace Hprose {
             }
         }
 
-        private function readNumberRaw(Stream $ostream): void {
+        private function readNumberRaw(BytesIO $ostream): void {
             $s = $this->stream->readuntil(Tags::TagSemicolon) .
                  Tags::TagSemicolon;
             $ostream->write($s);
         }
 
-        private function readDateTimeRaw(Stream $ostream): void {
+        private function readDateTimeRaw(BytesIO $ostream): void {
             $s = '';
             do {
                 $tag = $this->stream->getc();
@@ -118,86 +118,29 @@ namespace Hprose {
             $ostream->write($s);
         }
 
-        private function readUTF8CharRaw(Stream $ostream): void {
-            $tag = $this->stream->getc();
-            $s = $tag;
-            $a = ord($tag);
-            if (($a & 0xE0) == 0xC0) {
-                $s .= $this->stream->getc();
-            }
-            elseif (($a & 0xF0) == 0xE0) {
-                $s .= $this->stream->read(2);
-            }
-            elseif ($a > 0x7F) {
-                throw new \Exception("bad utf-8 encoding");
-            }
-            $ostream->write($s);
+        private function readUTF8CharRaw(BytesIO $ostream): void {
+            $ostream->write($this->stream->readString(1));
         }
 
-        private function readBytesRaw(Stream $ostream): void {
+        private function readBytesRaw(BytesIO $ostream): void {
             $len = $this->stream->readuntil(Tags::TagQuote);
             $s = $len . Tags::TagQuote . $this->stream->read((int)$len) . Tags::TagQuote;
             $this->stream->skip(1);
             $ostream->write($s);
         }
 
-        private function readStringRaw(Stream $ostream): void {
+        private function readStringRaw(BytesIO $ostream): void {
             $len = $this->stream->readuntil(Tags::TagQuote);
-            $s = $len . Tags::TagQuote;
-            $len = (int)$len;
-            $this->stream->mark();
-            $utf8len = 0;
-            for ($i = 0; $i < $len; ++$i) {
-                switch (ord($this->stream->getc()) >> 4) {
-                    case 0:
-                    case 1:
-                    case 2:
-                    case 3:
-                    case 4:
-                    case 5:
-                    case 6:
-                    case 7: {
-                        // 0xxx xxxx
-                        $utf8len++;
-                        break;
-                    }
-                    case 12:
-                    case 13: {
-                        // 110x xxxx   10xx xxxx
-                        $this->stream->skip(1);
-                        $utf8len += 2;
-                        break;
-                    }
-                    case 14: {
-                        // 1110 xxxx  10xx xxxx  10xx xxxx
-                        $this->stream->skip(2);
-                        $utf8len += 3;
-                        break;
-                    }
-                    case 15: {
-                        // 1111 0xxx  10xx xxxx  10xx xxxx  10xx xxxx
-                        $this->stream->skip(3);
-                        $utf8len += 4;
-                        ++$i;
-                        break;
-                    }
-                    default: {
-                        throw new \Exception('bad utf-8 encoding');
-                    }
-                }
-            }
-            $this->stream->reset();
-            $this->stream->unmark();
-            $s .= $this->stream->read($utf8len) . Tags::TagQuote;
+            $s = $len . Tags::TagQuote . $this->stream->readString((int)$len) . Tags::TagQuote;
             $this->stream->skip(1);
             $ostream->write($s);
         }
 
-        private function readGuidRaw(Stream $ostream): void {
+        private function readGuidRaw(BytesIO $ostream): void {
             $ostream->write($this->stream->read(38));
         }
 
-        private function readComplexRaw(Stream $ostream): void {
+        private function readComplexRaw(BytesIO $ostream): void {
             $s = $this->stream->readuntil(Tags::TagOpenbrace) .
                  Tags::TagOpenbrace;
             $ostream->write($s);

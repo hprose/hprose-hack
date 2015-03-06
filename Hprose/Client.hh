@@ -14,7 +14,7 @@
  *                                                        *
  * hprose client library for hack.                        *
  *                                                        *
- * LastModified: Feb 25, 2015                             *
+ * LastModified: Mar 6, 2015                              *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -59,7 +59,7 @@ namespace Hprose {
             if ($simple === null) {
                 $simple = $this->simple;
             }
-            $stream = new StringStream(Tags::TagCall);
+            $stream = new BytesIO(Tags::TagCall);
             //$hproseWriter = new Writer($stream, $simple);
             //$hproseWriter->writeString($name);
             $stream->write(\hprose_serialize_string($name));
@@ -92,7 +92,7 @@ namespace Hprose {
             if ($resultMode == ResultMode::Raw) {
                 return substr($response, 0, -1);
             }
-            $stream = new StringStream($response);
+            $stream = new BytesIO($response);
             //$hproseReader = new Reader($stream);
             $hproseReader = new RawReader($stream);
             $result = null;

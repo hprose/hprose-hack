@@ -14,7 +14,7 @@
  *                                                        *
  * hprose writer class for hack.                          *
  *                                                        *
- * LastModified: Feb 26, 2015                             *
+ * LastModified: Mar 6, 2015                              *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -22,12 +22,12 @@
 namespace Hprose {
     interface WriterRefer {
         public function set(mixed $val): void;
-        public function write(Stream $stream, mixed $val): bool;
+        public function write(BytesIO $stream, mixed $val): bool;
         public function reset(): void;
     }
     class FakeWriterRefer implements WriterRefer {
         public function set(mixed $val): void {}
-        public function write(Stream $stream, mixed $val): bool {
+        public function write(BytesIO $stream, mixed $val): bool {
             return false;
         }
         public function reset(): void {}
@@ -35,11 +35,10 @@ namespace Hprose {
     class RealWriterRefer implements WriterRefer {
         private Vector<mixed> $ref = Vector {};
         private Map<string, int> $sref = Map {};
-        private Map<string, int> $bref = Map {};
         private Map<string, int> $oref = Map {};
         private int $refcount = 0;
 
-        private function write_ref(Stream $stream, int $index): bool {
+        private function write_ref(BytesIO $stream, int $index): bool {
             $stream->write(Tags::TagRef . $index . Tags::TagSemicolon);
             return true;
         }
@@ -47,23 +46,16 @@ namespace Hprose {
             if (is_string($val)) {
                 $this->sref[$val] = $this->refcount;
             }
-            elseif ($val instanceof _Bytes) {
-                $this->bref[$val->value] = $this->refcount;
-            }
             elseif (is_object($val)) {
                 $this->ref->add($val);
                 $this->oref[spl_object_hash($val)] = $this->refcount;
             }
             $this->refcount++;
         }
-        public function write(Stream $stream, mixed $val): bool {
+        public function write(BytesIO $stream, mixed $val): bool {
             if (is_string($val) &&
                 $this->sref->contains($val)) {
                 return $this->write_ref($stream, $this->sref[$val]);
-            }
-            elseif (($val instanceof _Bytes) &&
-                $this->bref->contains($val->value)) {
-                return $this->write_ref($stream, $this->bref[$val->value]);
             }
             elseif (is_object($val) &&
                 $this->oref->contains(spl_object_hash($val))) {
@@ -74,22 +66,37 @@ namespace Hprose {
         public function reset(): void {
             $this->ref->clear();
             $this->sref->clear();
-            $this->bref->clear();
             $this->oref->clear();
             $this->refcount = 0;
         }
     }
 
     class Writer {
-        public Stream $stream;
+        public BytesIO $stream;
         private Map<string, int> $classref = Map {};
         private Vector<array<\ReflectionProperty>> $propsref = Vector {};
         private WriterRefer $refer;
-        public function __construct(Stream $stream, bool $simple = false) {
+        public function __construct(BytesIO $stream, bool $simple = false) {
             $this->stream = $stream;
             $this->refer = $simple ?
                            new FakeWriterRefer() :
                            new RealWriterRefer();
+        }
+        private static function is_utf8(string $s): bool {
+            return iconv('UTF-8', 'UTF-8//IGNORE', $s) === $s;
+        }
+
+        private static function ustrlen(string $s): int {
+            return strlen(iconv('UTF-8', 'UTF-16LE', $s)) >> 1;
+        }
+
+        private static function is_list(array<arraykey, mixed> $a): bool {
+            $count = count($a);
+            // UNSAFE
+            return ($count === 0) ||
+                   ($count === 1 && (isset($a[0]) || array_key_exists(0, $a))) ||
+                   ((isset($a[$count - 1]) || array_key_exists($count - 1, $a)) &&
+                    (isset($a[0]) || array_key_exists(0, $a)));
         }
         public function serialize(mixed $val): void {
             if ($val === null) {
@@ -118,20 +125,20 @@ namespace Hprose {
                         $this->writeEmpty();
                     }
                     elseif (strlen($val) < 4 &&
-                        is_utf8($val) &&
-                        ustrlen($val) == 1) {
+                        self::is_utf8($val) &&
+                        self::ustrlen($val) == 1) {
                         $this->writeUTF8Char($val);
                     }
-                    elseif (is_utf8($val)) {
+                    elseif (self::is_utf8($val)) {
                         $this->writeStringWithRef($val);
                     }
                     else {
-                        $this->writeBytesWithRef(bytes($val));
+                        $this->writeBytesWithRef($val);
                     }
                 }
             }
             elseif (is_array($val)) {
-                if (is_list($val)) {
+                if (self::is_list($val)) {
                     $this->writeArray($val);
                 }
                 else {
@@ -139,10 +146,7 @@ namespace Hprose {
                 }
             }
             elseif (is_object($val)) {
-                if ($val instanceof _Bytes) {
-                    $this->writeBytesWithRef($val);
-                }
-                elseif ($val instanceof \DateTime) {
+                if ($val instanceof \DateTime) {
                     $this->writeDateTimeWithRef($val);
                 }
                 elseif ($val instanceof KeyedTraversable) {
@@ -150,9 +154,6 @@ namespace Hprose {
                 }
                 elseif ($val instanceof Traversable) {
                     $this->writeListWithRef($val);
-                }
-                elseif ($val instanceof _Map) {
-                    $this->writeAssocArray($val->value);
                 }
                 elseif ($val instanceof \stdClass) {
                     $this->writeStdClassWithRef($val);
@@ -202,7 +203,7 @@ namespace Hprose {
         }
         public function writeString(string $str): void {
             $this->refer->set($str);
-            $len = ustrlen($str);
+            $len = self::ustrlen($str);
             $this->stream->write(Tags::TagString);
             if ($len > 0) {
                 $this->stream->write((string)$len);
@@ -214,17 +215,16 @@ namespace Hprose {
                 $this->writeString($str);
             }
         }
-        public function writeBytes(_Bytes $bytes): void {
+        public function writeBytes(string $bytes): void {
             $this->refer->set($bytes);
-            $val = $bytes->value;
-            $len = strlen($val);
+            $len = strlen($bytes);
             $this->stream->write(Tags::TagBytes);
             if ($len > 0) {
                 $this->stream->write((string)$len);
             }
-            $this->stream->write(Tags::TagQuote . $val . Tags::TagQuote);
+            $this->stream->write(Tags::TagQuote . $bytes . Tags::TagQuote);
         }
-        public function writeBytesWithRef(_Bytes $bytes): void {
+        public function writeBytesWithRef(string $bytes): void {
             if (!$this->refer->write($this->stream, $bytes)) {
                 $this->writeBytes($bytes);
             }
@@ -355,7 +355,7 @@ namespace Hprose {
             }
         }
         protected function writeClass(string $alias, array<\ReflectionProperty> $props): int {
-            $len = ustrlen($alias);
+            $len = self::ustrlen($alias);
             $this->stream->write(Tags::TagClass . $len .
                                  Tags::TagQuote . $alias . Tags::TagQuote);
             $count = count($props);

@@ -14,7 +14,7 @@
  *                                                        *
  * hprose unserialize library for hack.                   *
  *                                                        *
- * LastModified: Feb 26, 2015                             *
+ * LastModified: Mar 6, 2015                              *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -447,8 +447,8 @@ namespace {
         return $v;
     }
 
-    function hprose_unserialize_with_stream(Hprose\Stream $s, bool $simple = false): mixed {
-        if ($s instanceof Hprose\StringStream) {
+    function hprose_unserialize_with_stream(Hprose\BytesIO $s, bool $simple = false): mixed {
+        if ($s instanceof Hprose\BytesIO) {
             $o = new stdClass();
             $s->mark();
             $o->s = $s->readfull();
@@ -471,8 +471,8 @@ namespace {
         }
     }
 
-    function hprose_unserialize_string_with_stream(Hprose\Stream $s, bool $simple = false): string {
-        if ($s instanceof Hprose\StringStream) {
+    function hprose_unserialize_string_with_stream(Hprose\BytesIO $s, bool $simple = false): string {
+        if ($s instanceof Hprose\BytesIO) {
             $o = new stdClass();
             $s->mark();
             $o->s = $s->readfull();
@@ -494,8 +494,8 @@ namespace {
         }
     }
 
-    function hprose_unserialize_list_with_stream(Hprose\Stream $s): Vector<mixed> {
-        if ($s instanceof Hprose\StringStream) {
+    function hprose_unserialize_list_with_stream(Hprose\BytesIO $s): Vector<mixed> {
+        if ($s instanceof Hprose\BytesIO) {
             $o = new stdClass();
             $s->mark();
             $o->s = $s->readfull();
@@ -515,7 +515,7 @@ namespace {
 
 /*
     function hprose_unserialize(string $s, bool $simple = false): mixed {
-        $reader = new Hprose\Reader(new Hprose\StringStream($s), $simple);
+        $reader = new Hprose\Reader(new Hprose\BytesIO($s), $simple);
         return $reader->unserialize();
     }
 */

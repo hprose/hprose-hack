@@ -14,7 +14,7 @@
  *                                                        *
  * hprose reader class for hack.                          *
  *                                                        *
- * LastModified: Feb 26, 2015                             *
+ * LastModified: Mar 6, 2015                              *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -53,7 +53,7 @@ namespace Hprose {
     class Reader extends RawReader {
         private Vector<(string, Vector<string>)> $classref = Vector {};
         private ReaderRefer $refer;
-        public function __construct(Stream $stream, bool $simple = false) {
+        public function __construct(BytesIO $stream, bool $simple = false) {
             parent::__construct($stream);
             $this->refer = $simple ?
                            new FakeReaderRefer() :
@@ -61,7 +61,6 @@ namespace Hprose {
         }
         public function unserialize(): mixed {
             $tag = $this->stream->getc();
-            $result = null;
             switch ($tag) {
                 case '0': return 0;
                 case '1': return 1;
@@ -97,9 +96,8 @@ namespace Hprose {
                 default: throw $this->unexpectedTag($tag);
             }
         }
-        public function unserialize_key(): arraykey {
+        private function unserializeKey(): arraykey {
             $tag = $this->stream->getc();
-            $result = null;
             switch ($tag) {
                 case '0': return 0;
                 case '1': return 1;
@@ -335,70 +333,15 @@ namespace Hprose {
             }
         }
         public function readUTF8CharWithoutTag(): string {
-            $c = $this->stream->getc();
-            $s = $c;
-            $a = ord($c);
-            if (($a & 0xE0) == 0xC0) {
-                $s .= $this->stream->getc();
-            }
-            elseif (($a & 0xF0) == 0xE0) {
-                $s .= $this->stream->read(2);
-            }
-            elseif ($a > 0x7F) {
-                throw new \Exception("bad utf-8 encoding");
-            }
-            return $s;
+            return $this->stream->readString(1);
         }
         public function readUTF8Char(): string {
             $this->checkTag(Tags::TagUTF8Char);
             return $this->readUTF8CharWithoutTag();
         }
         private function _readStringWithoutTag(): string {
-            $len = (int)$this->stream->readuntil(Tags::TagQuote);
-            $this->stream->mark();
-            $utf8len = 0;
-            for ($i = 0; $i < $len; ++$i) {
-                switch (ord($this->stream->getc()) >> 4) {
-                    case 0:
-                    case 1:
-                    case 2:
-                    case 3:
-                    case 4:
-                    case 5:
-                    case 6:
-                    case 7: {
-                        // 0xxx xxxx
-                        $utf8len++;
-                        break;
-                    }
-                    case 12:
-                    case 13: {
-                        // 110x xxxx   10xx xxxx
-                        $this->stream->skip(1);
-                        $utf8len += 2;
-                        break;
-                    }
-                    case 14: {
-                        // 1110 xxxx  10xx xxxx  10xx xxxx
-                        $this->stream->skip(2);
-                        $utf8len += 3;
-                        break;
-                    }
-                    case 15: {
-                        // 1111 0xxx  10xx xxxx  10xx xxxx  10xx xxxx
-                        $this->stream->skip(3);
-                        $utf8len += 4;
-                        ++$i;
-                        break;
-                    }
-                    default: {
-                        throw new \Exception('bad utf-8 encoding');
-                    }
-                }
-            }
-            $this->stream->reset();
-            $this->stream->unmark();
-            $s = $this->stream->read($utf8len);
+            $n = (int)$this->stream->readuntil(Tags::TagQuote);
+            $s = $this->stream->readString($n);
             $this->stream->skip(1);
             return $s;
         }
@@ -469,7 +412,7 @@ namespace Hprose {
             $this->refer->set($map);
             $count = (int)$this->stream->readuntil(Tags::TagOpenbrace);
             for ($i = 0; $i < $count; ++$i) {
-                $key = $this->unserialize_key();
+                $key = $this->unserializeKey();
                 $map[$key] = $this->unserialize();
             }
             $this->stream->skip(1);

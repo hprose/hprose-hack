@@ -10,17 +10,17 @@
 
 /**********************************************************\
  *                                                        *
- * Hprose/StringStream.hh                                 *
+ * Hprose/BytesIO.hh                                      *
  *                                                        *
- * hprose string stream library for hack.                 *
+ * hprose BytesIO class for hack                          *
  *                                                        *
- * LastModified: Feb 26, 2015                             *
+ * LastModified: Mar 6, 2015                              *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace Hprose {
-    class StringStream implements Stream {
+    class BytesIO {
         protected string $buffer;
         protected int $length;
         protected int $pos = 0;
@@ -41,9 +41,9 @@ namespace Hprose {
         public function getc(): string {
             return $this->buffer[$this->pos++];
         }
-        public function read(int $length): string {
-            $s = substr($this->buffer, $this->pos, $length);
-            $this->skip($length);
+        public function read(int $n): string {
+            $s = substr($this->buffer, $this->pos, $n);
+            $this->skip($n);
             return $s;
         }
         public function readfull(): string {
@@ -63,6 +63,50 @@ namespace Hprose {
             }
             return $s;
         }
+        public function readString(int $n): string {
+            $pos = $this->pos;
+            $buffer = $this->buffer;
+            for ($i = 0; $i < $n; ++$i) {
+                switch (ord($buffer[$pos]) >> 4) {
+                    case 0:
+                    case 1:
+                    case 2:
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 6:
+                    case 7: {
+                        // 0xxx xxxx
+                        ++$pos;
+                        break;
+                    }
+                    case 12:
+                    case 13: {
+                        // 110x xxxx   10xx xxxx
+                        $pos += 2;
+                        break;
+                    }
+                    case 14: {
+                        // 1110 xxxx  10xx xxxx  10xx xxxx
+                        $pos += 3;
+                        break;
+                    }
+                    case 15: {
+                        // 1111 0xxx  10xx xxxx  10xx xxxx  10xx xxxx
+                        $pos += 4;
+                        ++$i;
+                        if ($i >= $n) {
+                            throw new \Exception('bad utf-8 encoding');
+                        }
+                        break;
+                    }
+                    default: {
+                        throw new \Exception('bad utf-8 encoding');
+                    }
+                }
+            }
+            return $this->read($pos - $this->pos);
+        }
         public function mark(): void {
             $this->mark = $this->pos;
         }
@@ -80,15 +124,15 @@ namespace Hprose {
         public function eof(): bool {
             return ($this->pos >= $this->length);
         }
-        public function write(string $str, int $length = -1): void {
-            if ($length == -1) {
+        public function write(string $str, int $n = -1): void {
+            if ($n == -1) {
                 $this->buffer .= $str;
-                $length = strlen($str);
+                $n = strlen($str);
             }
             else {
-                $this->buffer .= substr($str, 0, $length);
+                $this->buffer .= substr($str, 0, $n);
             }
-            $this->length += $length;
+            $this->length += $n;
         }
         public function toString(): string {
             return $this->buffer;

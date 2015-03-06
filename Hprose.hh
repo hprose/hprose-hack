@@ -14,17 +14,15 @@
  *                                                        *
  * hprose for hack.                                       *
  *                                                        *
- * LastModified: Feb 25, 2015                             *
+ * LastModified: Mar 6, 2015                              *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
 
 namespace {
-    require('Hprose/Common.hh');
     require('Hprose/Tags.hh');
     require('Hprose/ResultMode.hh');
-    require('Hprose/Stream.hh');
-    require('Hprose/StringStream.hh');
+    require('Hprose/BytesIO.hh');
     require('Hprose/ClassManager.hh');
     require('Hprose/Writer.hh');
     require('Hprose/RawReader.hh');
@@ -37,11 +35,9 @@ namespace {
     require('Hprose/Service.hh');
     require('Hprose/HttpService.hh');
 
-    class_alias('Hprose\\_Bytes', 'HproseBytes');
-    class_alias('Hprose\\_Map', 'HproseMap');
     class_alias('Hprose\\Tags', 'HproseTags');
     class_alias('Hprose\\ResultMode', 'HproseResultMode');
-    class_alias('Hprose\\StringStream', 'HproseStringStream');
+    class_alias('Hprose\\BytesIO', 'HproseBytesIO');
     class_alias('Hprose\\ClassManager', 'HproseClassManager');
     class_alias('Hprose\\Writer', 'HproseWriter');
     class_alias('Hprose\\RawReader', 'HproseRawReader');
