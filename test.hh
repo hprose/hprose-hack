@@ -211,9 +211,48 @@ namespace Hprose {
         var_dump($param->getTypeText());
     }
 
-    $client = new HttpClient('http://192.168.1.50/server.hh');
+    $client = new HttpClient('http://127.0.0.1/server.hh');
     var_dump($client->hello("World"));
 
-    $u = parse_url('http://www.hprose.com/');
-    var_dump(array_key_exists('path', $u) && $u['path'] != '');
+    $client->hello("async hello", function($result, $args, $error) {
+        echo "result: ";
+        var_dump($result);
+        echo "args: ";
+        var_dump($args);
+        echo "error: ";
+        var_dump($error);
+    });
+    $client->hello("async hello2", function($result, $args, $error) {
+        echo "result: ";
+        var_dump($result);
+        echo "args: ";
+        var_dump($args);
+        echo "error: ";
+        var_dump($error);
+    });
+    $client->loop();
+    $client->hello("async hello3", function($result, $args, $error) {
+        echo "result: ";
+        var_dump($result);
+        echo "args: ";
+        var_dump($args);
+        echo "error: ";
+        var_dump($error);
+    });
+    $client->hello("async hello4", function($result, $args, $error) {
+        echo "result: ";
+        var_dump($result);
+        echo "args: ";
+        var_dump($args);
+        echo "error: ";
+        var_dump($error);
+    });
+    $client->hello("async hello5", function($result, $args, $error) {
+        echo "result: ";
+        var_dump($result);
+        echo "args: ";
+        var_dump($args);
+        echo "error: ";
+        var_dump($error);
+    });
 }

@@ -31,6 +31,9 @@ namespace Hprose {
         private int $keepAliveTimeout = 300;
         private Map<string, string> $header;
         private resource $curl;
+        private resource $multicurl;
+        private Vector<(function(string, ?\Exception): void)> $callbacks = Vector {};
+        private Vector<resource> $curls = Vector {};
         public static function keepSession(): void {
             // UNSAFE
             if (array_key_exists('HPROSE_COOKIE_MANAGER', $_SESSION)) {
@@ -102,7 +105,7 @@ namespace Hprose {
             }
             return '';
         }
-        private function init_url(string $url): void {
+        private function initUrl(string $url): void {
             if ($url) {
                 $url = parse_url($url);
                 $this->secure = (strtolower($url['scheme']) == 'https');
@@ -115,25 +118,26 @@ namespace Hprose {
         }
         public function __construct(string $url = '') {
             parent::__construct($url);
-            $this->init_url($url);
+            $this->initUrl($url);
             $this->header = Map {'Content-type' => 'application/hprose'};
             $this->curl = curl_init();
+            $this->multicurl = curl_multi_init();
         }
         public function useService(string $url = '', string $namespace = ''): mixed {
-            $this->init_url($url);
+            $this->initUrl($url);
             return parent::useService($url, $namespace);
         }
-        protected function sendAndReceive(string $request): string {
-            curl_setopt($this->curl, CURLOPT_URL, $this->url);
-            curl_setopt($this->curl, CURLOPT_HEADER, true);
-            curl_setopt($this->curl, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($this->curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+        private function initCurl(resource $curl, string $request): void {
+            curl_setopt($curl, CURLOPT_URL, $this->url);
+            curl_setopt($curl, CURLOPT_HEADER, true);
+            curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
             if (!ini_get('safe_mode')) {
-                curl_setopt($this->curl, CURLOPT_FOLLOWLOCATION, true);
+                curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
             }
-            curl_setopt($this->curl, CURLOPT_POST, true);
-            curl_setopt($this->curl, CURLOPT_POSTFIELDS, $request);
+            curl_setopt($curl, CURLOPT_POST, true);
+            curl_setopt($curl, CURLOPT_POSTFIELDS, $request);
             $headers_array = array($this->getCookie(),
                                     "Content-Length: " . strlen($request));
             if ($this->keepAlive) {
@@ -146,23 +150,20 @@ namespace Hprose {
             foreach ($this->header as $name => $value) {
                 $headers_array[] = $name . ": " . $value;
             }
-            curl_setopt($this->curl, CURLOPT_HTTPHEADER, $headers_array);
+            curl_setopt($curl, CURLOPT_HTTPHEADER, $headers_array);
             if ($this->proxy) {
-                curl_setopt($this->curl, CURLOPT_PROXY, $this->proxy);
+                curl_setopt($curl, CURLOPT_PROXY, $this->proxy);
             }
             if (defined('CURLOPT_TIMEOUT_MS')) {
-                curl_setopt($this->curl, CURLOPT_TIMEOUT_MS, $this->timeout);
+                curl_setopt($curl, CURLOPT_TIMEOUT_MS, $this->timeout);
             }
             else {
-                curl_setopt($this->curl, CURLOPT_TIMEOUT, $this->timeout / 1000);
+                curl_setopt($curl, CURLOPT_TIMEOUT, $this->timeout / 1000);
             }
-            $response = curl_exec($this->curl);
-            $errno = curl_errno($this->curl);
-            if ($errno) {
-                throw new \Exception($errno . ": " . curl_error($this->curl));
-            }
+        }
+        private function getContents(string $data): string {
             do {
-                list($response_headers, $response) = explode("\r\n\r\n", $response, 2);
+                list($response_headers, $response) = explode("\r\n\r\n", $data, 2);
                 $http_response_header = explode("\r\n", $response_headers);
                 $http_response_firstline = array_shift($http_response_header);
                 $matches = array();
@@ -181,6 +182,60 @@ namespace Hprose {
             }
             $this->setCookie($http_response_header);
             return $response;
+        }
+        protected function sendAndReceive(string $request): string {
+            $this->initCurl($this->curl, $request);
+            $data = curl_exec($this->curl);
+            $errno = curl_errno($this->curl);
+            if ($errno) {
+                throw new \Exception($errno . ": " . curl_error($this->curl));
+            }
+            return $this->getContents($data);
+        }
+        protected function asyncSendAndReceive(string $request, (function(string, ?\Exception): void) $callback): void {
+            $curl = curl_init();
+            $this->initCurl($curl, $request);
+            curl_multi_add_handle($this->multicurl, $curl);
+            $this->curls->add($curl);
+            $this->callbacks->add($callback);
+        }
+        public function loop(): void {
+            $count = count($this->curls);
+            if ($count === 0) return;
+            try {
+                $active = null;
+                do {
+                    $status = curl_multi_exec($this->multicurl, $active);
+                } while ($status === CURLM_CALL_MULTI_PERFORM);
+                while ($status === CURLM_OK && $count > 0) {
+                    do {
+                        $status = curl_multi_exec($this->multicurl, $active);
+                    } while ($status === CURLM_CALL_MULTI_PERFORM);
+                    $msgs_in_queue = null;
+                    while ($info = curl_multi_info_read($this->multicurl, $msgs_in_queue)) {
+                        $h = $info['handle'];
+                        $index = $this->curls->linearSearch($h);
+                        $callback = $this->callbacks[$index];
+                        if ($info['result'] === CURLM_OK) {
+                            $data = curl_multi_getcontent($h);
+                            $callback($this->getContents($data), null);
+                        }
+                        else {
+                            $callback('', new \Exception($info['result'] . ": " . curl_error($h)));
+                        }
+                        --$count;
+                        if ($msgs_in_queue === 0) break;
+                    }
+                }
+            }
+            finally {
+                foreach($this->curls as $i => $curl) {
+                    curl_multi_remove_handle($this->multicurl, $curl);
+                    curl_close($curl);
+                }
+                $this->curls->clear();
+                $this->callbacks->clear();
+            }
         }
         public function setHeader(string $name, string $value): void {
             $lname = strtolower($name);
@@ -217,7 +272,13 @@ namespace Hprose {
             return $this->keepAliveTimeout;
         }
         public function __destruct(): void {
-            curl_close($this->curl);
+            try {
+                $this->loop();
+            }
+            finally {
+                curl_multi_close($this->multicurl);
+                curl_close($this->curl);
+            }
         }
     }
 }

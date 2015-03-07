@@ -14,7 +14,7 @@
  *                                                        *
  * hprose service library for hack.                       *
  *                                                        *
- * LastModified: Mar 6, 2015                              *
+ * LastModified: Mar 8, 2015                              *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -58,23 +58,6 @@ namespace Hprose {
             "__set_state",
             "__clone"
         );
-        protected static Map<int, string> $errorTable = Map {
-            E_ERROR => 'Error',
-            E_WARNING => 'Warning',
-            E_PARSE => 'Parse Error',
-            E_NOTICE => 'Notice',
-            E_CORE_ERROR => 'Core Error',
-            E_CORE_WARNING => 'Core Warning',
-            E_COMPILE_ERROR => 'Compile Error',
-            E_COMPILE_WARNING => 'Compile Warning',
-            E_DEPRECATED => 'Deprecated',
-            E_USER_ERROR => 'User Error',
-            E_USER_WARNING => 'User Warning',
-            E_USER_NOTICE => 'User Notice',
-            E_USER_DEPRECATED => 'User Deprecated',
-            E_STRICT => 'Runtime Notice',
-            E_RECOVERABLE_ERROR  => 'Catchable Fatal Error'
-        };
         private Map<string, RemoteCall> $calls = Map {};
         private Vector<string> $names = Vector {};
         private Vector<Filter> $filters = Vector {};
@@ -107,16 +90,22 @@ namespace Hprose {
                 $sendError = $this->onSendError;
                 $sendError($error, $context);
             }
-            $data = Tags::TagError .
-                    \hprose_serialize_string($error) .
-                    Tags::TagEnd;
+            $stream = new BytesIO();
+            $writer = new Writer($stream, true);
+            $stream->write(Tags::TagError);
+            $writer->writeString($error);
+            $stream->write(Tags::TagEnd);
+            $data = $stream->toString();
+            $stream->close();
             return $this->outputFilter($data, $context);
         }
         protected function doInvoke(BytesIO $input,
                                     \stdClass $context): string {
             $output = new BytesIO();
+            $reader = new Reader($input);
             do {
-                $name = hprose_unserialize_string_with_stream($input, true);
+                $reader->reset();
+                $name = (string)$reader->readString();
                 $alias = strtolower($name);
                 if ($this->calls->contains($alias)) {
                     $call = $this->calls[$alias];
@@ -136,7 +125,8 @@ namespace Hprose {
                 $byref = false;
                 $tag = $input->getc();
                 if ($tag == Tags::TagList) {
-                    $args = \hprose_unserialize_list_with_stream($input)->toArray();
+                    $reader->reset();
+                    $args = $reader->readListWithoutTag()->toArray();
                     $tag = $input->getc();
                     if ($tag == Tags::TagTrue) {
                         $byref = true;
@@ -181,16 +171,19 @@ namespace Hprose {
                     $output->write($result);
                 }
                 else {
+                    $writer = new Writer($output, $simple);
                     $output->write(Tags::TagResult);
                     if ($mode == ResultMode::Serialized) {
                         $output->write($result);
                     }
                     else {
-                        $output->write(\hprose_serialize($result, $simple));
+                        $writer->reset();
+                        $writer->serialize($result);
                     }
                     if ($byref) {
-                        $output->write(Tags::TagArgument .
-                                       \hprose_serialize_list($args, $simple));
+                        $output->write(Tags::TagArgument);
+                        $writer->reset();
+                        $writer->writeArray($args);
                     }
                 }
             } while ($tag == Tags::TagCall);
@@ -198,9 +191,13 @@ namespace Hprose {
             return $this->outputFilter($output->toString(), $context);
         }
         protected function doFunctionList(\stdClass $context): string {
-            $data = Tags::TagFunctions .
-                    \hprose_serialize_list($this->names, true) .
-                    Tags::TagEnd;
+            $stream = new BytesIO();
+            $writer = new Writer($stream, true);
+            $stream->write(Tags::TagFunctions);
+            $writer->writeList($this->names);
+            $stream->write(Tags::TagEnd);
+            $data = $stream->toString();
+            $stream->close();
             return $this->outputFilter($data, $context);
         }
         private static function getDeclaredOnlyMethods(string $class): array<string> {
@@ -474,10 +471,6 @@ namespace Hprose {
                 }
                 return $this->sendError($error, $context);
             }
-        }
-        public abstract function handle(): void;
-        public function start(): void {
-            $this->handle();
         }
     }
 }

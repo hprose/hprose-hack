@@ -14,7 +14,7 @@
  *                                                        *
  * hprose client library for hack.                        *
  *                                                        *
- * LastModified: Mar 6, 2015                              *
+ * LastModified: Mar 8, 2015                              *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -29,6 +29,14 @@ namespace Hprose {
         }
         public function __call(string $name, array<mixed> $arguments): mixed {
             $name = $this->namespace . $name;
+            $n = count($arguments);
+            if ($n > 0) {
+                if (is_callable($arguments[$n - 1])) {
+                    $callback = array_pop($arguments);
+                    $this->client->invoke($name, new Vector($arguments), false, ResultMode::Normal, false, $callback);
+                    return;
+                }
+            }
             return $this->client->invoke($name, new Vector($arguments));
         }
         public function __get(string $name): mixed {
@@ -36,15 +44,22 @@ namespace Hprose {
         }
     }
 
-    abstract class Client {
+    abstract class Client extends Proxy {
         protected string $url;
         private Vector<Filter> $filters;
         private bool $simple;
-        protected abstract function sendAndReceive(string $request): string;
+        protected function sendAndReceive(string $request): string {
+           throw new \Exception("This client can't support synchronous invoke.");
+        }
+        protected function asyncSendAndReceive(string $request, (function(string, ?\Exception): void) $callback): void {
+            throw new \Exception("This client can't support asynchronous invoke.");
+        }
         public function __construct(string $url = '') {
             $this->url = $url;
             $this->filters = Vector {};
             $this->simple = false;
+            // UNSAFE
+            parent::__construct($this, '');
         }
         public function useService(string $url = '', string $namespace = ''): mixed {
             if ($url) {
@@ -55,73 +70,67 @@ namespace Hprose {
             }
             return new Proxy($this, $namespace);
         }
-        public function invoke(string $name, Vector<mixed> $arguments = Vector {}, bool $byRef = false, ResultMode $resultMode = ResultMode::Normal, ?bool $simple = null): mixed {
+        private function doOutput(string $name, Vector<mixed> $args, bool $byref, ?bool $simple, \stdClass $context): string {
             if ($simple === null) {
                 $simple = $this->simple;
             }
             $stream = new BytesIO(Tags::TagCall);
-            //$hproseWriter = new Writer($stream, $simple);
-            //$hproseWriter->writeString($name);
-            $stream->write(\hprose_serialize_string($name));
-            if (count($arguments) > 0 || $byRef) {
-                //$hproseWriter->reset();
-                //$hproseWriter->writeList($arguments);
-                $stream->write(\hprose_serialize_list($arguments, $simple));
-                if ($byRef) {
-                    //$hproseWriter->writeBoolean(true);
-                    $stream->write(\hprose_serialize_bool(true));
+            $writer = new Writer($stream, $simple);
+            $writer->writeString($name);
+            if (count($args) > 0 || $byref) {
+                $writer->reset();
+                $writer->writeList($args);
+                if ($byref) {
+                    $writer->writeBoolean(true);
                 }
             }
             $stream->write(Tags::TagEnd);
             $request = $stream->toString();
             $count = count($this->filters);
-            $context = new \stdClass();
-            $context->client = $this;
-            $context->userdata = new \stdClass();
             for ($i = 0; $i < $count; $i++) {
                 $request = $this->filters[$i]->outputFilter($request, $context);
             }
             $stream->close();
-            $response = $this->sendAndReceive($request);
+            return $request;
+        }
+        private function doInput(string $response, Vector<mixed> $args, ResultMode $mode, \stdClass $context): mixed {
+            $count = count($this->filters);
             for ($i = $count - 1; $i >= 0; $i--) {
                 $response = $this->filters[$i]->inputFilter($response, $context);
             }
-            if ($resultMode == ResultMode::RawWithEndTag) {
+            if ($mode == ResultMode::RawWithEndTag) {
                 return $response;
             }
-            if ($resultMode == ResultMode::Raw) {
+            if ($mode == ResultMode::Raw) {
                 return substr($response, 0, -1);
             }
             $stream = new BytesIO($response);
-            //$hproseReader = new Reader($stream);
-            $hproseReader = new RawReader($stream);
+            $reader = new Reader($stream);
             $result = null;
             while (($tag = $stream->getc()) !== Tags::TagEnd) {
                 switch ($tag) {
                     case Tags::TagResult:
-                        if ($resultMode == ResultMode::Serialized) {
-                            $result = $hproseReader->readRaw()->toString();
+                        if ($mode == ResultMode::Serialized) {
+                            $result = $reader->readRaw()->toString();
                         }
                         else {
-                            //$hproseReader->reset();
-                            //$result = $hproseReader->unserialize();
-                            $result = \hprose_unserialize_with_stream($stream);
+                            $reader->reset();
+                            $result = $reader->unserialize();
                         }
                         break;
                     case Tags::TagArgument:
-                        //$hproseReader->reset();
-                        //$args = $hproseReader->readList();
-                        $args = \hprose_unserialize_with_stream($stream);
-                        if ($args instanceof Vector) {
-                            for ($i = 0, $n = count($arguments); $i < $n; $i++) {
-                                $arguments[$i] = $args[$i];
+                        $reader->reset();
+                        $_args = $reader->readList();
+                        if ($_args instanceof Vector) {
+                            $n = min(count($_args), count($args));
+                            for ($i = 0; $i < $n; $i++) {
+                                $args[$i] = $_args[$i];
                             }
                         }
                         break;
                     case Tags::TagError:
-                        //$hproseReader->reset();
-                        //throw new \Exception($hproseReader->unserialize());
-                        throw new \Exception(\hprose_unserialize_string_with_stream($stream));
+                        $reader->reset();
+                        throw new \Exception((string)$reader->readString());
                         break;
                     default:
                         throw new \Exception("Wrong Response: \r\n" . $response);
@@ -129,6 +138,46 @@ namespace Hprose {
                 }
             }
             return $result;
+        }
+        public function invoke(string $name, Vector<mixed> $args = Vector {}, bool $byref = false, ResultMode $mode = ResultMode::Normal, ?bool $simple = null, mixed $callback = null): mixed {
+            $context = new \stdClass();
+            $context->client = $this;
+            $context->userdata = new \stdClass();
+            $request = $this->doOutput($name, $args, $byref, $simple, $context);
+            if (is_callable($callback)) {
+                $this->asyncSendAndReceive($request, ($response, $error) ==> {
+                    $result = null;
+                    $callback = new \ReflectionFunction($callback);
+                    $n = $callback->getNumberOfParameters();
+                    if ($n === 3) {
+                        if ($error === null) {
+                            try {
+                                $result = $this->doInput($response, $args, $mode, $context);
+                            }
+                            catch (\Exception $e) {
+                                $error = $e;
+                            }
+                        }
+                        $callback->invoke($result, $args, $error);
+                    }
+                    else {
+                        if ($error !== null) throw $error;
+                        $result = $this->doInput($response, $args, $mode, $context);
+                        switch($n) {
+                            case 0:
+                                $callback->invoke(); break;
+                            case 1:
+                                $callback->invoke($result); break;
+                            case 2:
+                                $callback->invoke($result, $args); break;
+                        }
+                    }
+                });
+            }
+            else {
+                $response = $this->sendAndReceive($request);
+                return $this->doInput($response, $args, $mode, $context);
+            }
         }
         public function getFilter(): ?Filter {
             if (count($this->filters) === 0) {
@@ -158,12 +207,6 @@ namespace Hprose {
         }
         public function setSimpleMode(bool $simple = true): void {
             $this->simple = $simple;
-        }
-        public function __call(string $name, array<mixed> $arguments): mixed {
-            return $this->invoke($name, new Vector($arguments));
-        }
-        public function __get(string $name): mixed {
-            return new Proxy($this, $name . '_');
         }
     }
 
