@@ -21,9 +21,25 @@
 
 namespace Hprose {
     class RemoteCall {
+        public array<\ReflectionParameter> $params;
+        public bool $byref;
         public function __construct(public mixed $func,
                                     public ResultMode $mode,
-                                    public ?bool $simple) {}
+                                    public ?bool $simple) {
+            if (is_array($func)) {
+                $this->params = (new \ReflectionMethod($func[0], $func[1]))->getParameters();
+            }
+            else {
+                $this->params = (new \ReflectionFunction($func))->getParameters();
+            }
+            $this->byref = false;
+            foreach($this->params as $param) {
+                if ($param->isPassedByReference()) {
+                    $this->byref = true;
+                    break;
+                }
+            }
+        }
     }
     abstract class Service {
         private static array<string> $magic_methods = array(
@@ -91,7 +107,6 @@ namespace Hprose {
                 $sendError = $this->onSendError;
                 $sendError($error, $context);
             }
-            @ob_clean();
             $data = Tags::TagError .
                     \hprose_serialize_string($error) .
                     Tags::TagEnd;
@@ -126,6 +141,18 @@ namespace Hprose {
                     if ($tag == Tags::TagTrue) {
                         $byref = true;
                         $tag = $input->getc();
+                    }
+                    if ($call->byref) {
+                        $_args = array();
+                        foreach($args as $i => &$arg) {
+                            if ($call->params[$i]->isPassedByReference()) {
+                                $_args[] = &$arg;
+                            }
+                            else {
+                                $_args[] = $arg;
+                            }
+                        }
+                        $args = $_args;
                     }
                 }
                 if (($tag != Tags::TagEnd) && ($tag != Tags::TagCall)) {
