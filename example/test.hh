@@ -1,6 +1,6 @@
 <?hh
 namespace Hprose {
-    include("Hprose.hh");
+    include("../Hprose.hh");
 
     function runtime($mode = 0) {
         static $s;

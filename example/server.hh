@@ -1,6 +1,6 @@
 <?hh
 
-include("Hprose.hh");
+include("../Hprose.hh");
 
 function hello(string $name): string {
     return "Hello " . $name;
