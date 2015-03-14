@@ -14,7 +14,7 @@
  *                                                        *
  * hprose http service library for hack.                  *
  *                                                        *
- * LastModified: Mar 8, 2015                              *
+ * LastModified: Mar 14, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -61,7 +61,7 @@ namespace Hprose {
                 if (array_key_exists('HTTP_ORIGIN', $_SERVER) &&
                     $_SERVER['HTTP_ORIGIN'] != "null") {
                     $origin = $_SERVER['HTTP_ORIGIN'];
-                    if ($this->origins->contains($origin)) {
+                    if (count($this->origins) === 0 || $this->origins->contains(strtolower($origin))) {
                         header("Access-Control-Allow-Origin: " . $origin);
                         header("Access-Control-Allow-Credentials: true");
                     }
@@ -90,10 +90,18 @@ namespace Hprose {
             $this->get = $enable;
         }
         public function addAccessControlAllowOrigin(string $origin): void {
-            $this->origins[$origin] = true;
+            $count = count($origin);
+            if (($count > 0) && ($origin[$count - 1] === "/")) {
+                $origin = substr($origin, 0, -1);
+            }
+            $this->origins[strtolower($origin)] = true;
         }
         public function removeAccessControlAllowOrigin(string $origin): void {
-            $this->origins->remove($origin);
+            $count = count($origin);
+            if (($count > 0) && ($origin[$count - 1] === "/")) {
+                $origin = substr($origin, 0, -1);
+            }
+            $this->origins->remove(strtolower($origin));
         }
         public function handle(): void {
             $request = file_get_contents("php://input");
