@@ -14,7 +14,7 @@
  *                                                        *
  * hprose service library for hack.                       *
  *                                                        *
- * LastModified: Mar 8, 2015                              *
+ * LastModified: Mar 28, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -162,8 +162,6 @@ namespace Hprose {
                     $afterInvoke = $this->onAfterInvoke;
                     $afterInvoke($name, $args, $byref, $result, $context);
                 }
-                // some service functions/methods may echo content, we need clean it
-                @ob_clean();
                 if ($mode == ResultMode::RawWithEndTag) {
                     return $this->outputFilter($result, $context);
                 }
