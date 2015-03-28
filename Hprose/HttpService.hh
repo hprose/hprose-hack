@@ -14,7 +14,7 @@
  *                                                        *
  * hprose http service library for hack.                  *
  *                                                        *
- * LastModified: Mar 14, 2015                             *
+ * LastModified: Mar 28, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -115,7 +115,7 @@ namespace Hprose {
                     $errstr .= " in $errfile on line $errline";
                 }
                 $error = self::$errorTable[$errno] . ": " . $errstr;
-                exit($this->sendError($error, $context));
+                echo $this->sendError($error, $context);
             }, $this->error_types);
 
             ob_start($data ==> {
@@ -144,7 +144,7 @@ namespace Hprose {
                 $result = $this->defaultHandle($request, $context);
             }
             @ob_end_clean();
-            exit($result);
+            echo $result;
         }
     }
     class HttpServer extends HttpService {
