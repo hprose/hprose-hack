@@ -279,6 +279,7 @@ namespace Hprose {
                 curl_multi_close($this->multicurl);
                 curl_close($this->curl);
             }
+            parent::__destruct();
         }
     }
 }

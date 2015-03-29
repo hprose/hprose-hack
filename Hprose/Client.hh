@@ -27,6 +27,8 @@ namespace Hprose {
             $this->client = $client;
             $this->namespace = $namespace;
         }
+        public function __destruct(): void {
+        }
         public function __call(string $name, array<mixed> $arguments): mixed {
             $name = $this->namespace . $name;
             $n = count($arguments);
