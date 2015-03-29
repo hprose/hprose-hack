@@ -14,7 +14,7 @@
  *                                                        *
  * hprose service library for hack.                       *
  *                                                        *
- * LastModified: Mar 28, 2015                             *
+ * LastModified: Mar 29, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -58,6 +58,23 @@ namespace Hprose {
             "__set_state",
             "__clone"
         );
+        protected static Map<int, string> $errorTable = Map {
+            E_ERROR => 'Error',
+            E_WARNING => 'Warning',
+            E_PARSE => 'Parse Error',
+            E_NOTICE => 'Notice',
+            E_CORE_ERROR => 'Core Error',
+            E_CORE_WARNING => 'Core Warning',
+            E_COMPILE_ERROR => 'Compile Error',
+            E_COMPILE_WARNING => 'Compile Warning',
+            E_DEPRECATED => 'Deprecated',
+            E_USER_ERROR => 'User Error',
+            E_USER_WARNING => 'User Warning',
+            E_USER_NOTICE => 'User Notice',
+            E_USER_DEPRECATED => 'User Deprecated',
+            E_STRICT => 'Runtime Notice',
+            E_RECOVERABLE_ERROR  => 'Catchable Fatal Error'
+        };
         private Map<string, RemoteCall> $calls = Map {};
         private Vector<string> $names = Vector {};
         private Vector<Filter> $filters = Vector {};
@@ -68,7 +85,7 @@ namespace Hprose {
         public ?(function(string, array<mixed>, bool, mixed, \stdClass): void) $onAfterInvoke = null;
         public ?(function(string, \stdClass): void) $onSendError = null;
 
-        protected function inputFilter(string $data,
+        private function inputFilter(string $data,
                                        \stdClass $context): string {
             $count = count($this->filters);
             for ($i = $count - 1; $i >= 0; $i--) {
@@ -76,7 +93,7 @@ namespace Hprose {
             }
             return $data;
         }
-        protected function outputFilter(string $data,
+        private function outputFilter(string $data,
                                         \stdClass $context): string {
             $count = count($this->filters);
             for ($i = 0; $i < $count; $i++) {
