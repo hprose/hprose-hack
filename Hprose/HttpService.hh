@@ -14,7 +14,7 @@
  *                                                        *
  * hprose http service library for hack.                  *
  *                                                        *
- * LastModified: Mar 28, 2015                             *
+ * LastModified: Mar 29, 2015                             *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -129,21 +129,25 @@ namespace Hprose {
                     }
                     return $this->sendError(trim($error), $context);
                 }
-                return $this->outputFilter($data, $context);
             });
 
             ob_implicit_flush(0);
-            @ob_clean();
             $this->sendHeader($context);
             $result = '';
             // UNSAFE
-            if (($_SERVER['REQUEST_METHOD'] == 'GET') && $this->get) {
+            if (array_key_exists('REQUEST_METHOD', $_SERVER)) {
+                if (($_SERVER['REQUEST_METHOD'] == 'GET') && $this->get) {
+                    $result = $this->doFunctionList($context);
+                }
+                elseif ($_SERVER['REQUEST_METHOD'] == 'POST') {
+                    $result = $this->defaultHandle($request, $context);
+                }
+            }
+            else {
                 $result = $this->doFunctionList($context);
             }
-            elseif ($_SERVER['REQUEST_METHOD'] == 'POST') {
-                $result = $this->defaultHandle($request, $context);
-            }
-            @ob_end_clean();
+            @ob_clean();
+            @ob_end_flush();
             echo $result;
         }
     }
