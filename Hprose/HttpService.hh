@@ -97,7 +97,7 @@ namespace Hprose {
                 if ($this->debug) {
                     $errstr .= " in $errfile on line $errline";
                 }
-                $error = self::$errorTable[$errno] . ": " . $errstr;
+                $error = $this->getErrorTypeString($errno) . ": " . $errstr;
                 echo $this->sendError($error, $context);
             }, $this->error_types);
 

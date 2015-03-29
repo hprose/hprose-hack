@@ -58,7 +58,7 @@ namespace Hprose {
             "__set_state",
             "__clone"
         );
-        protected static Map<int, string> $errorTable = Map {
+        private static Map<int, string> $errorTable = Map {
             E_ERROR => 'Error',
             E_WARNING => 'Warning',
             E_PARSE => 'Parse Error',
@@ -100,6 +100,9 @@ namespace Hprose {
                 $data = $this->filters[$i]->outputFilter($data, $context);
             }
             return $data;
+        }
+        protected function getErrorTypeString(int $errno): string {
+            return self::$errorTable[$errno];
         }
         protected function sendError(string $error,
                                      \stdClass $context): string {
