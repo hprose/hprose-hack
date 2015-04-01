@@ -14,7 +14,7 @@
  *                                                        *
  * hprose service library for hack.                       *
  *                                                        *
- * LastModified: Mar 29, 2015                             *
+ * LastModified: Apr 1, 2015                              *
  * Author: Ma Bingyao <andot@hprose.com>                  *
  *                                                        *
 \**********************************************************/
@@ -400,7 +400,7 @@ namespace Hprose {
                         return;
                     }
                     elseif (is_string($args[0]) && is_string($args[2])) {
-                        if (is_string($args[1]) && !is_callable(array($args[0], $args[1]))) {
+                        if (is_string($args[1]) && !is_callable(array($args[1], $args[0]))) {
                             $this->addClassMethods($args[0], $args[1], $args[2]);
                         }
                         else {
